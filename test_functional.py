@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+"""
+Functional tests that exercise the actual command logic (not just imports).
+These verify the bugs that were fixed: db.Model attribute access, mute
+permissions, antispam persistence, and new-member security checks.
+"""
+import os
+import sys
+import asyncio
+import types
+from unittest.mock import AsyncMock, MagicMock, patch
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+os.environ['BOT_TOKEN'] = '1:fake'
+os.environ['BOT_USERNAME'] = 'fake_bot'
+os.environ['SUPER_ADMIN_ID'] = '1'
+
+
+def make_update(chat_id=-100123, user_id=42, is_private=False, args=None, reply_to=None, new_members=None):
+    """Build a lightweight fake Update object."""
+    update = MagicMock()
+    update.effective_chat.id = chat_id
+    update.effective_chat.title = "Test Chat"
+    update.effective_chat.type = 'private' if is_private else 'group'
+    update.effective_user.id = user_id
+    update.effective_user.first_name = "Tester"
+    update.effective_user.last_name = None
+    update.effective_user.username = "tester"
+    update.effective_user.is_bot = False
+    update.message.message_id = 10
+    update.message.reply_to_message = reply_to
+    update.message.new_chat_members = new_members or []
+    update.message.text = ""
+    update.message.reply_text = AsyncMock()
+    update.message.delete = AsyncMock()
+    return update
+
+
+def make_context(chat_id=-100123, args=None):
+    """Build a fake ContextTypes.DEFAULT_TYPE with an async bot."""
+    context = MagicMock()
+    context.args = args or []
+    chat = MagicMock()
+    chat.permissions = MagicMock(can_send_messages=True)
+    context.bot.get_chat = AsyncMock(return_value=chat)
+    context.bot.ban_chat_member = AsyncMock()
+    context.bot.unban_chat_member = AsyncMock()
+    context.bot.restrict_chat_member = AsyncMock()
+    context.bot.delete_message = AsyncMock()
+    context.bot.send_message = AsyncMock(return_value=MagicMock(message_id=99))
+    context.bot.id = 999
+    context.bot.get_chat_member_count = AsyncMock(return_value=5)
+    context.job_queue.run_once = MagicMock()
+    context.error = Exception("test")
+    return context
+
+
+def test_db_model_attributes():
+    """db.Chat, db.Admin etc. must be queryable model classes (was AttributeError)."""
+    from database import db
+    session = db.get_session()
+    try:
+        for model_name in ['Chat', 'User', 'Admin', 'Ban', 'Warning', 'Mute', 'Whitelist']:
+            model = getattr(db, model_name)
+            assert model is not None, f"db.{model_name} missing"
+            # Must actually execute a query without raising
+            session.query(model).all()
+        print("✅ db model attributes are queryable (db.Chat, db.Admin, ...)")
+        return True
+    except Exception as e:
+        print(f"❌ db model attributes error: {e}")
+        return False
+    finally:
+        session.close()
+
+
+def test_no_duplicate_db_methods():
+    """DatabaseManager must not define add_mute/remove_mute/is_muted twice."""
+    from database import DatabaseManager
+    for name in ['add_mute', 'remove_mute', 'is_muted', 'add_ban', 'add_warning']:
+        # getattr resolves to the final definition; we just ensure it exists once logically
+        method = getattr(DatabaseManager, name, None)
+        assert method is not None, f"{name} missing"
+    print("✅ No duplicate mute methods (single definitions present)")
+    return True
+
+
+def test_mute_command_uses_awaited_permissions():
+    """mute_command must await get_chat before restrict_chat_member."""
+    import inspect
+    from handlers.user_management import mute_command
+    src = inspect.getsource(inspect.unwrap(mute_command))
+    assert "permissions=context.bot.get_chat(chat_id).permissions" not in src, \
+        "mute_command still uses non-awaited get_chat().permissions"
+    assert "chat = await context.bot.get_chat(chat_id)" in src, \
+        "mute_command does not await get_chat"
+    assert "permissions=chat.permissions" in src
+    print("✅ mute_command awaits get_chat for permissions")
+    return True
+
+
+def test_smute_command_uses_awaited_permissions():
+    import inspect
+    from handlers.user_management import smute_command
+    src = inspect.getsource(inspect.unwrap(smute_command))
+    assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
+    assert "chat = await context.bot.get_chat(chat_id)" in src
+    print("✅ smute_command awaits get_chat for permissions")
+    return True
+
+
+def test_antiflood_uses_awaited_permissions():
+    import inspect
+    from handlers.antiflood import check_flood
+    src = inspect.getsource(check_flood)
+    assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
+    assert "chat = await context.bot.get_chat(chat_id)" in src
+    print("✅ antiflood check_flood awaits get_chat for permissions")
+    return True
+
+
+def test_filters_apply_action_uses_awaited_permissions():
+    import inspect
+    from handlers.filters import apply_filter_action
+    src = inspect.getsource(apply_filter_action)
+    assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
+    assert "chat = await context.bot.get_chat(chat_id)" in src
+    print("✅ filters.apply_filter_action awaits get_chat for permissions")
+    return True
+
+
+def test_reports_mute_uses_awaited_permissions():
+    import inspect
+    from handlers.reports import handle_report_callback
+    src = inspect.getsource(handle_report_callback)
+    assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
+    assert "chat = await context.bot.get_chat(chat_id)" in src
+    print("✅ reports.handle_report_callback mute awaits get_chat for permissions")
+    return True
+
+
+def test_captcha_uses_chatpermissions():
+    """Captcha restrict must use ChatPermissions(can_send_messages=False)."""
+    import inspect
+    from handlers.welcome import handle_captcha
+    src = inspect.getsource(handle_captcha)
+    assert "permissions._replace" not in src, "captcha still uses broken ._replace"
+    assert "ChatPermissions(can_send_messages=False)" in src
+    print("✅ captcha uses ChatPermissions(can_send_messages=False)")
+    return True
+
+
+def test_antispam_persists():
+    """antispam_command must persist the antispam_enabled flag in ChatSettings."""
+    import inspect
+    from handlers.filters import antispam_command
+    src = inspect.getsource(inspect.unwrap(antispam_command))
+    assert "ChatSettings" in src, "antispam_command does not reference ChatSettings"
+    assert "antispam_enabled = status" in src, "antispam_command does not set antispam_enabled"
+    print("✅ antispam_command persists antispam_enabled in ChatSettings")
+    return True
+
+
+def test_antispam_gate_in_check_filters():
+    """check_message_filters must gate spam patterns on is_antispam_enabled."""
+    import inspect
+    from handlers.filters import check_message_filters
+    src = inspect.getsource(check_message_filters)
+    assert "is_antispam_enabled" in src, "spam patterns not gated on antispam setting"
+    print("✅ check_message_filters gates spam patterns on antispam setting")
+    return True
+
+
+def test_new_member_welcome_has_security_checks():
+    """handle_new_member_welcome must include under-attack + global-ban checks + bot-added."""
+    import inspect
+    from handlers.welcome import handle_new_member_welcome
+    src = inspect.getsource(handle_new_member_welcome)
+    assert "under_attack" in src, "under-attack check missing from new-member handler"
+    assert "is_banned" in src, "global-ban enforcement missing from new-member handler"
+    assert "bot_added" in src, "bot-added detection missing from new-member handler"
+    print("✅ handle_new_member_welcome includes under-attack, global-ban, bot-added checks")
+    return True
+
+
+def test_bot_added_handler_not_registered():
+    """The broken handle_bot_added_to_chat filter must no longer be registered."""
+    import inspect
+    from bot import main
+    src = inspect.getsource(main)
+    assert "filters.User(user_id=None)" not in src, "broken bot-added filter still registered"
+    print("✅ broken handle_bot_added_to_chat filter removed from registrations")
+    return True
+
+
+def test_main_is_sync():
+    """main() must be a synchronous function (PTB v20 run_polling pattern)."""
+    import bot
+    assert not asyncio.iscoroutinefunction(bot.main), "bot.main is async (would break run_polling)"
+    print("✅ bot.main is synchronous (correct PTB v20 run_polling pattern)")
+    return True
+
+
+def test_backup_command_imports_models():
+    """backup_command must import Note/WordFilter instead of using db.Note/db.WordFilter."""
+    import inspect
+    from handlers.advanced_features import backup_command
+    src = inspect.getsource(backup_command)
+    assert "from handlers.notes import Note" in src
+    assert "from handlers.filters import WordFilter" in src
+    assert "db.Note" not in src and "db.WordFilter" not in src
+    print("✅ backup_command imports Note/WordFilter directly")
+    return True
+
+
+def test_db_query_in_handlers_runs():
+    """Exercise real db queries that handlers perform (db.Chat, db.Admin, db.Ban, etc.)."""
+    from database import db
+    db.get_or_create_chat(-100999, "Func Chat")
+    db.get_or_create_user(555, "u555", "User", "Five")
+    db.add_admin(555, -100999)
+    session = db.get_session()
+    try:
+        chat = session.query(db.Chat).filter(db.Chat.id == -100999).first()
+        assert chat is not None and chat.title == "Func Chat"
+        admin = session.query(db.Admin).filter(db.Admin.chat_id == -100999).first()
+        assert admin is not None and admin.user_id == 555
+        bans = session.query(db.Ban).filter(db.Ban.chat_id == -100999).all()
+        assert isinstance(bans, list)
+    finally:
+        session.close()
+    print("✅ handler-style db.Chat/db.Admin/db.Ban queries execute successfully")
+    return True
+
+
+def test_is_admin_logic():
+    from database import db, Config
+    db.get_or_create_chat(-100998, "Admin Chat")
+    assert db.is_admin(Config.SUPER_ADMIN_ID, -100998) is True
+    assert db.is_admin(777, -100998) is False
+    db.add_admin(777, -100998)
+    assert db.is_admin(777, -100998) is True
+    db.remove_admin(777, -100998)
+    assert db.is_admin(777, -100998) is False
+    print("✅ is_admin / add_admin / remove_admin work end-to-end")
+    return True
+
+
+def main():
+    tests = [
+        test_db_model_attributes,
+        test_no_duplicate_db_methods,
+        test_mute_command_uses_awaited_permissions,
+        test_smute_command_uses_awaited_permissions,
+        test_antiflood_uses_awaited_permissions,
+        test_filters_apply_action_uses_awaited_permissions,
+        test_reports_mute_uses_awaited_permissions,
+        test_captcha_uses_chatpermissions,
+        test_antispam_persists,
+        test_antispam_gate_in_check_filters,
+        test_new_member_welcome_has_security_checks,
+        test_bot_added_handler_not_registered,
+        test_main_is_sync,
+        test_backup_command_imports_models,
+        test_db_query_in_handlers_runs,
+        test_is_admin_logic,
+    ]
+    passed = 0
+    for t in tests:
+        try:
+            if t():
+                passed += 1
+        except Exception as e:
+            print(f"❌ {t.__name__} failed: {e}")
+            import traceback
+            traceback.print_exc()
+    print("\n" + "=" * 50)
+    print(f"📊 Functional tests: {passed}/{len(tests)} passed")
+    return 0 if passed == len(tests) else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

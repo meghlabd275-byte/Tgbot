@@ -248,10 +248,11 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
             elif action == 'mute':
                 from datetime import datetime, timedelta
                 until_date = datetime.now() + timedelta(hours=1)
+                chat = await context.bot.get_chat(chat_id)
                 await context.bot.restrict_chat_member(
                     chat_id=chat_id,
                     user_id=reported_user_id,
-                    permissions=context.bot.get_chat(chat_id).permissions,
+                    permissions=chat.permissions,
                     until_date=until_date
                 )
                 db.add_mute(reported_user_id, chat_id, admin_id, 3600, f"Report: {report.reason}")

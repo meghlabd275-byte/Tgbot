@@ -179,10 +179,11 @@ async def check_flood(update: Update, context: ContextTypes.DEFAULT_TYPE) -> boo
         try:
             if settings['action'] == 'mute':
                 until_date = datetime.now() + timedelta(seconds=settings['duration'])
+                chat = await context.bot.get_chat(chat_id)
                 await context.bot.restrict_chat_member(
                     chat_id=chat_id,
                     user_id=user_id,
-                    permissions=context.bot.get_chat(chat_id).permissions,
+                    permissions=chat.permissions,
                     until_date=until_date
                 )
                 db.add_mute(user_id, chat_id, context.bot.id, settings['duration'], "Flood protection")

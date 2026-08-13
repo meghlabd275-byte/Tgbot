@@ -27,6 +27,7 @@ class ChatSettings(Base):
     slow_mode_delay = Column(Integer, default=30)
     auto_delete_commands = Column(Boolean, default=False)
     welcome_delay_delete = Column(Integer, default=0)
+    antispam_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -461,6 +462,9 @@ async def cleanup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Backup chat settings"""
+    from handlers.notes import Note
+    from handlers.filters import WordFilter
+
     chat_id = update.effective_chat.id
     
     # This would generate a backup file with all chat settings
@@ -469,8 +473,8 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = db.get_session()
     try:
         # Count various settings
-        notes_count = session.query(db.Note).filter(db.Note.chat_id == chat_id).count()
-        filters_count = session.query(db.WordFilter).filter(db.WordFilter.chat_id == chat_id).count()
+        notes_count = session.query(Note).filter(Note.chat_id == chat_id).count()
+        filters_count = session.query(WordFilter).filter(WordFilter.chat_id == chat_id).count()
         admins_count = session.query(db.Admin).filter(db.Admin.chat_id == chat_id).count()
         
         backup_info = f"""💾 **Backup Information**

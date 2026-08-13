@@ -1,4 +1,5 @@
 import re
+import functools
 from typing import Optional, Union
 from telegram import Update, User
 from telegram.ext import ContextTypes
@@ -82,6 +83,7 @@ def format_time_duration(seconds: int) -> str:
 
 def is_admin_command(func):
     """Decorator to check if user is admin before executing command"""
+    @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from database import db
         
@@ -98,6 +100,7 @@ def is_admin_command(func):
 
 def is_group_command(func):
     """Decorator to ensure command is used in a group"""
+    @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_chat.type == 'private':
             await update.message.reply_text("❌ This command can only be used in groups.")

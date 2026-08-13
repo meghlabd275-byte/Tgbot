@@ -128,7 +128,7 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.error(f"Error in handle_all_messages: {e}")
         await error_handler(update, context)
 
-async def main():
+def main():
     """Main function to run the bot"""
     try:
         # Validate configuration
@@ -267,12 +267,6 @@ async def main():
             handle_left_member_goodbye
         ))
         
-        # Handle bot being added to chat
-        application.add_handler(MessageHandler(
-            filters.StatusUpdate.NEW_CHAT_MEMBERS & filters.User(user_id=None),  # Will be set to bot's ID
-            handle_bot_added_to_chat
-        ))
-        
         # Handle forwarded messages for verification (private chats only)
         application.add_handler(MessageHandler(
             filters.FORWARDED & filters.ChatType.PRIVATE,
@@ -315,7 +309,7 @@ async def main():
         
         # Start the bot
         logger.info("🤖 Starting Telegram Admin Bot...")
-        await application.run_polling(
+        application.run_polling(
             allowed_updates=Update.ALL_TYPES,
             drop_pending_updates=True
         )
@@ -325,5 +319,4 @@ async def main():
         raise
 
 if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
+    main()

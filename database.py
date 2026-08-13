@@ -89,7 +89,17 @@ class DatabaseManager:
         self.engine = create_engine(database_url)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         Base.metadata.create_all(bind=self.engine)
-    
+
+        # Expose model classes so handlers can do `session.query(db.Chat)` etc.
+        self.Chat = Chat
+        self.User = User
+        self.Admin = Admin
+        self.Ban = Ban
+        self.Warning = Warning
+        self.Mute = Mute
+        self.Whitelist = Whitelist
+        self.Base = Base
+
     def get_session(self):
         return self.SessionLocal()
     
@@ -369,57 +379,6 @@ class DatabaseManager:
                 session.delete(whitelist)
             session.commit()
             return len(whitelists) > 0
-        finally:
-            session.close()
-    
-    def add_mute(self, user_id: int, chat_id: int, muted_by: int, duration: int, reason: str = None):
-        """Add a mute record"""
-        session = self.get_session()
-        try:
-            from datetime import datetime, timedelta
-            until = datetime.now() + timedelta(seconds=duration)
-            
-            mute = Mute(
-                user_id=user_id,
-                chat_id=chat_id,
-                muted_by=muted_by,
-                reason=reason,
-                until=until
-            )
-            session.add(mute)
-            session.commit()
-        finally:
-            session.close()
-    
-    def remove_mute(self, user_id: int, chat_id: int):
-        """Remove mute record"""
-        session = self.get_session()
-        try:
-            mute = session.query(Mute).filter(
-                Mute.user_id == user_id,
-                Mute.chat_id == chat_id
-            ).first()
-            
-            if mute:
-                session.delete(mute)
-                session.commit()
-                return True
-            return False
-        finally:
-            session.close()
-    
-    def is_muted(self, user_id: int, chat_id: int):
-        """Check if user is currently muted"""
-        session = self.get_session()
-        try:
-            from datetime import datetime
-            mute = session.query(Mute).filter(
-                Mute.user_id == user_id,
-                Mute.chat_id == chat_id,
-                Mute.until > datetime.now()
-            ).first()
-            
-            return mute is not None
         finally:
             session.close()
 

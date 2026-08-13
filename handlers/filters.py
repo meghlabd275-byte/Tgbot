@@ -275,15 +275,20 @@ async def antispam_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status = context.args[0].lower() == 'on'
     chat_id = update.effective_chat.id
     
-    # Store in chat settings (we'll add this to database)
+    from handlers.advanced_features import ChatSettings
     session = db.get_session()
     try:
-        chat = session.query(db.Chat).filter(db.Chat.id == chat_id).first()
-        if chat:
-            # We'll add an antispam field to the Chat model
-            await update.message.reply_text(
-                f"✅ Anti-spam protection {'enabled' if status else 'disabled'}."
-            )
+        settings = session.query(ChatSettings).filter(ChatSettings.chat_id == chat_id).first()
+        if settings:
+            settings.antispam_enabled = status
+            session.commit()
+        else:
+            settings = ChatSettings(chat_id=chat_id, antispam_enabled=status)
+            session.add(settings)
+            session.commit()
+        await update.message.reply_text(
+            f"✅ Anti-spam protection {'enabled' if status else 'disabled'}."
+        )
     finally:
         session.close()
 
@@ -314,11 +319,22 @@ async def check_message_filters(update: Update, context: ContextTypes.DEFAULT_TY
     if await check_media_filters(update, context):
         return True
     
-    # Check spam patterns
-    if message.text and await check_spam_patterns(update, context):
+    # Check spam patterns (only if anti-spam is enabled for this chat)
+    if message.text and is_antispam_enabled(chat_id) and await check_spam_patterns(update, context):
         return True
     
     return False
+
+def is_antispam_enabled(chat_id: int) -> bool:
+    """Check if anti-spam (spam pattern detection) is enabled for a chat"""
+    from handlers.advanced_features import ChatSettings
+    session = db.get_session()
+    try:
+        settings = session.query(ChatSettings).filter(ChatSettings.chat_id == chat_id).first()
+        # Default to enabled when no settings row exists yet
+        return settings.antispam_enabled if settings else True
+    finally:
+        session.close()
 
 async def check_word_filters(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check message against word filters"""
@@ -468,10 +484,11 @@ async def apply_filter_action(update: Update, context: ContextTypes.DEFAULT_TYPE
             from datetime import datetime, timedelta
             until_date = datetime.now() + timedelta(hours=1)
             
+            chat = await context.bot.get_chat(chat_id)
             await context.bot.restrict_chat_member(
                 chat_id=chat_id,
                 user_id=user_id,
-                permissions=context.bot.get_chat(chat_id).permissions,
+                permissions=chat.permissions,
                 until_date=until_date
             )
             db.add_mute(user_id, chat_id, context.bot.id, 3600, reason)

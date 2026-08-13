@@ -1,4 +1,4 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions
 from telegram.ext import ContextTypes
 from database import db
 from utils import is_admin_command, is_group_command, format_user_mention
@@ -288,34 +288,88 @@ async def cleanservice_command(update: Update, context: ContextTypes.DEFAULT_TYP
         session.close()
 
 async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle new member with welcome message and captcha"""
+    """Handle new member with welcome message and captcha, plus security checks"""
     chat_id = update.effective_chat.id
-    
+    new_members = update.message.new_chat_members or []
+
+    # If the bot itself was added to the chat, register it and announce
+    bot_user = context.bot
+    bot_added = any(m.is_bot and m.id == bot_user.id for m in new_members)
+    if bot_added:
+        db.get_or_create_chat(chat_id, update.effective_chat.title)
+        welcome_msg = (
+            f"👋 **Hello! I'm your new admin assistant bot.**\n\n"
+            f"🔧 **To get started:**\n"
+            f"1. Make me an admin with necessary permissions\n"
+            f"2. Use `/activate` to register this chat\n"
+            f"3. Use `/help` to see all available commands\n\n"
+            f"🛡️ **I can help you with:**\n"
+            f"• User management (ban, kick, mute, warn)\n"
+            f"• Chat moderation (silence, purge, pin)\n"
+            f"• Admin verification and security\n"
+            f"• Whitelist and reputation systems\n\n"
+            f"📚 Use `/help` for a complete command list!"
+        )
+        try:
+            await context.bot.send_message(chat_id, welcome_msg, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Failed to send bot-added welcome to chat {chat_id}: {e}")
+        return
+
     session = db.get_session()
     try:
         settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
-        
+
+        # Security checks: under-attack auto-kick and global-ban enforcement
+        chat_obj = session.query(db.Chat).filter(db.Chat.id == chat_id).first()
+        if chat_obj and chat_obj.under_attack:
+            for member in new_members:
+                if member.is_bot:
+                    continue
+                try:
+                    await context.bot.ban_chat_member(chat_id, member.id)
+                    await context.bot.unban_chat_member(chat_id, member.id)
+                    logger.info(f"Kicked new member {member.id} due to under-attack mode in chat {chat_id}")
+                except Exception as e:
+                    logger.error(f"Failed to kick new member {member.id}: {e}")
+            try:
+                await context.bot.delete_message(chat_id, update.message.message_id)
+            except:
+                pass
+            return
+
+        # Enforce global bans on join
+        for member in new_members:
+            if member.is_bot:
+                continue
+            if db.is_banned(member.id):
+                try:
+                    await context.bot.ban_chat_member(chat_id, member.id)
+                    logger.info(f"Banned new member {member.id} due to global ban in chat {chat_id}")
+                except Exception as e:
+                    logger.error(f"Failed to ban globally banned member {member.id}: {e}")
+            else:
+                db.get_or_create_user(member.id, member.username, member.first_name, member.last_name)
+
         if not settings:
             return
-        
+
         # Delete service message if enabled
         if settings.delete_service:
             try:
                 await context.bot.delete_message(chat_id, update.message.message_id)
             except:
                 pass
-        
-        for new_member in update.message.new_chat_members:
-            # Skip bots
+
+        for new_member in new_members:
             if new_member.is_bot:
                 continue
-            
-            # Check if captcha is enabled
+
             if settings.captcha_enabled:
                 await handle_captcha(update, context, new_member, settings)
             elif settings.welcome_enabled and settings.welcome_message:
                 await send_welcome_message(update, context, new_member, settings)
-    
+
     finally:
         session.close()
 
@@ -331,9 +385,7 @@ async def handle_captcha(update: Update, context: ContextTypes.DEFAULT_TYPE, use
         await context.bot.restrict_chat_member(
             chat_id=chat_id,
             user_id=user_id,
-            permissions=context.bot.get_chat(chat_id).permissions._replace(
-                can_send_messages=False
-            )
+            permissions=ChatPermissions(can_send_messages=False)
         )
     except:
         pass
