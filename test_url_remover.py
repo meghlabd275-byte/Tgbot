@@ -158,6 +158,51 @@ class TestURLRemover(unittest.IsolatedAsyncioTestCase):
             result = await check_url_remover(update, ctx)
         self.assertTrue(result, 'Invite-link removal should catch t.me links')
 
+    async def test_remove_urls_catches_hidden_text_link(self):
+        """A URL hidden behind a hyperlink (text_link entity) must be caught."""
+        from handlers.url_remover import check_url_remover, message_has_link
+        self._set_settings(remove_urls=True)
+        # Build a message whose visible text has no URL, but a text_link
+        # entity points to a URL (e.g. "click here" -> https://evil.com)
+        update = make_update(text='click here for info')
+        msg = update.effective_message
+        ent = MagicMock()
+        ent.type = 'text_link'
+        ent.url = 'https://evil-phishing-site.com'
+        msg.entities = [ent]
+        msg.caption_entities = []
+        # Sanity: visible text alone should NOT trigger, but entity should
+        self.assertFalse(
+            __import__('handlers.url_remover', fromlist=['contains_url']).contains_url('click here for info')
+        )
+        self.assertTrue(message_has_link(msg), 'message_has_link must catch hidden text_link URLs')
+        ctx = MagicMock()
+        ctx.bot.delete_message = AsyncMock()
+        with patch('database.db.is_admin', return_value=False), \
+             patch('database.db.is_whitelisted', return_value=False):
+            result = await check_url_remover(update, ctx)
+        self.assertTrue(result, 'URL remover must delete messages with hidden text_link URLs')
+        ctx.bot.delete_message.assert_called_once()
+
+    async def test_remove_all_links_catches_hidden_text_link(self):
+        """remove_all_links mode must also catch hidden hyperlinks."""
+        from handlers.url_remover import check_url_remover
+        self._set_settings(remove_all_links=True, remove_urls=False, remove_invites=False)
+        update = make_update(text='visit my channel')
+        msg = update.effective_message
+        ent = MagicMock()
+        ent.type = 'text_link'
+        ent.url = 'https://t.me/mychannel'
+        msg.entities = [ent]
+        msg.caption_entities = []
+        ctx = MagicMock()
+        ctx.bot.delete_message = AsyncMock()
+        with patch('database.db.is_admin', return_value=False), \
+             patch('database.db.is_whitelisted', return_value=False):
+            result = await check_url_remover(update, ctx)
+        self.assertTrue(result, 'remove-all-links must catch hidden invite links')
+        ctx.bot.delete_message.assert_called_once()
+
 
 class TestJoinHider(unittest.TestCase):
     def setUp(self):
@@ -170,6 +215,18 @@ class TestJoinHider(unittest.TestCase):
         self.assertIn('delete_joined_msg', cols)
         self.assertIn('delete_left_msg', cols)
         self.assertIn('delete_service', cols)
+        self.assertIn('delete_all_system_msg', cols)
+
+    def test_joinhider_command_supports_system_option(self):
+        from handlers.welcome import joinhider_command
+        import inspect
+        src = inspect.getsource(joinhider_command)
+        self.assertIn('system', src, 'joinhider must support a system option')
+        self.assertIn('delete_all_system_msg', src)
+
+    def test_handle_service_message_exists(self):
+        from handlers.welcome import handle_service_message
+        self.assertTrue(callable(handle_service_message))
 
 
 class TestEditedMessageHandler(unittest.IsolatedAsyncioTestCase):

@@ -27,6 +27,7 @@ class WelcomeSettings(Base):
     # Granular Join-Hider controls (like @joinhider_bot)
     delete_joined_msg = Column(Boolean, default=False)  # delete "X joined" service messages
     delete_left_msg = Column(Boolean, default=False)     # delete "X left" service messages
+    delete_all_system_msg = Column(Boolean, default=False)  # delete ALL service messages (pin, title, photo, group created, etc.)
     welcome_buttons = Column(Text)  # JSON string for buttons
     captcha_enabled = Column(Boolean, default=False)
     captcha_time = Column(Integer, default=300)  # 5 minutes
@@ -303,6 +304,9 @@ async def joinhider_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
       /joinhider joined on|off            -> delete "X joined" service messages
       /joinhider left on|off              -> delete "X left" service messages
       /joinhider all on|off               -> delete both joined + left messages
+      /joinhider system on|off           -> delete ALL service messages (pins, title/photo
+                                             changes, group created, etc.) — the
+                                             delete_all_system_msg option from @joinhider_bot
     """
     chat_id = update.effective_chat.id
     session = db.get_session()
@@ -317,11 +321,13 @@ async def joinhider_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "🚪 **Join Hider** — hide system join/leave messages\n\n"
                 f"• Delete joined messages: {'✅' if settings.delete_joined_msg else '❌'}\n"
                 f"• Delete left messages: {'✅' if settings.delete_left_msg else '❌'}\n"
+                f"• Delete ALL system messages: {'✅' if settings.delete_all_system_msg else '❌'}\n"
                 f"• Delete all service (legacy): {'✅' if settings.delete_service else '❌'}\n\n"
                 "**Commands:**\n"
                 "• `/joinhider joined on|off` — hide \"X joined\" messages\n"
                 "• `/joinhider left on|off` — hide \"X left\" messages\n"
-                "• `/joinhider all on|off` — hide both\n"
+                "• `/joinhider all on|off` — hide both join + leave\n"
+                "• `/joinhider system on|off` — hide ALL service messages (pins, title/photo changes)\n"
                 "• `/cleanservice on|off` — legacy master toggle",
                 parse_mode='Markdown',
             )
@@ -352,9 +358,16 @@ async def joinhider_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             settings.delete_joined_msg = val
             settings.delete_left_msg = val
             msg = f"✅ Hiding all join/leave messages {'enabled' if val else 'disabled'}."
+        elif sub == 'system':
+            if len(context.args) < 2:
+                await update.message.reply_text("❌ Usage: `/joinhider system on|off`", parse_mode='Markdown')
+                return
+            settings.delete_all_system_msg = _bool(context.args[1])
+            msg = (f"✅ Hiding ALL system messages {'enabled' if settings.delete_all_system_msg else 'disabled'}.\n"
+                   "Pinned-message, title-change, photo-change and group-created notifications will be deleted.")
         else:
             await update.message.reply_text(
-                "❌ Unknown option. Use: joined, left, all", parse_mode='Markdown'
+                "❌ Unknown option. Use: joined, left, all, system", parse_mode='Markdown'
             )
             return
 
@@ -738,6 +751,38 @@ async def handle_captcha_callback(update: Update, context: ContextTypes.DEFAULT_
         
         except Exception as e:
             logger.error(f"Error handling wrong captcha: {e}")
+
+
+async def handle_service_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Delete ALL service/system messages (pinned notifications, group-name changes,
+    photo changes, group-created messages, etc.) when 'delete_all_system_msg' or
+    the legacy 'delete_service' toggle is on. This mirrors @joinhider_bot's
+    delete_all_system_msg option.
+
+    Note: join/leave service messages are handled separately by
+    handle_new_member_welcome / handle_left_member_goodbye with their own granular
+    toggles. This handler catches the remaining service-message types.
+    """
+    if not update.message:
+        return
+
+    chat_id = update.effective_chat.id
+
+    session = db.get_session()
+    try:
+        settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
+        if not settings:
+            return
+        if not (settings.delete_all_system_msg or settings.delete_service):
+            return
+        try:
+            await context.bot.delete_message(chat_id, update.message.message_id)
+        except Exception as e:
+            logger.error(f"Failed to delete service message in {chat_id}: {e}")
+    finally:
+        session.close()
+
 
 # Initialize database
 update_welcome_database()

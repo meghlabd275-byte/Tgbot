@@ -84,6 +84,40 @@ def extract_text(message) -> str:
     return message.text or message.caption or ''
 
 
+def _extract_entity_urls(message) -> list:
+    """
+    Return URLs found in message entities / caption_entities.
+
+    Telegram reports URLs as entities of type 'url' (visible) and
+    'text_link' (hidden behind a hyperlink, e.g. "click here" -> url).
+    A user can bypass regex-based detection by hiding a URL behind a
+    text_link entity, so we must inspect entities too.
+    """
+    urls = []
+    if message is None:
+        return urls
+    entities = list(getattr(message, 'entities', None) or []) + \
+                list(getattr(message, 'caption_entities', None) or [])
+    for ent in entities:
+        etype = getattr(ent, 'type', None)
+        if etype == 'text_link':
+            url = getattr(ent, 'url', None)
+            if url:
+                urls.append(url)
+        elif etype == 'url' and message.text:
+            # Visible URL entity: extract the substring from the text.
+            try:
+                urls.append(message.text[ent.offset:ent.offset + ent.length])
+            except Exception:
+                pass
+        elif etype == 'url' and message.caption:
+            try:
+                urls.append(message.caption[ent.offset:ent.offset + ent.length])
+            except Exception:
+                pass
+    return urls
+
+
 def contains_url(text: str) -> bool:
     """True if the text contains any web URL (http(s)://, www., or bare domain)."""
     if not text:
@@ -104,6 +138,21 @@ def contains_invite_link(text: str) -> bool:
     if not text:
         return False
     return bool(TELEGRAM_INVITE_REGEX.search(text))
+
+
+def message_has_link(message) -> bool:
+    """
+    True if the message contains a URL or invite link in its text, caption,
+    OR hidden inside message/caption entities (text_link / url entities).
+    """
+    text = extract_text(message)
+    if contains_url(text) or contains_invite_link(text):
+        return True
+    # Check hidden URLs in entities (text_link = hyperlink with hidden URL)
+    for url in _extract_entity_urls(message):
+        if contains_url(url) or contains_invite_link(url):
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -168,14 +217,16 @@ async def check_url_remover(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         reason = ''
 
         if s.remove_all_links:
-            if contains_url(text) or contains_invite_link(text):
+            # Catches URLs/invites in text, captions, AND hidden hyperlinks (entities)
+            if message_has_link(message):
                 should_delete = True
                 reason = 'link detected (remove-all-links mode)'
         else:
-            if s.remove_urls and contains_url(text):
+            if s.remove_urls and (contains_url(text) or any(contains_url(u) for u in _extract_entity_urls(message))):
                 should_delete = True
                 reason = 'URL detected (remove-urls mode)'
-            if not should_delete and s.remove_invites and contains_invite_link(text):
+            if not should_delete and s.remove_invites and \
+               (contains_invite_link(text) or any(contains_invite_link(u) for u in _extract_entity_urls(message))):
                 should_delete = True
                 reason = 'invite link detected (remove-invites mode)'
 

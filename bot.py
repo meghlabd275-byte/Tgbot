@@ -73,7 +73,8 @@ from handlers.filters import (
 from handlers.welcome import (
     setwelcome_command, setgoodbye_command, welcome_command, goodbye_command,
     captcha_command, cleanservice_command, joinhider_command,
-    handle_new_member_welcome, handle_left_member_goodbye, handle_captcha_callback
+    handle_new_member_welcome, handle_left_member_goodbye, handle_captcha_callback,
+    handle_service_message
 )
 
 from handlers.url_remover import (
@@ -280,6 +281,16 @@ def main():
         application.add_handler(MessageHandler(
             filters.StatusUpdate.LEFT_CHAT_MEMBER, 
             handle_left_member_goodbye
+        ))
+
+        # Delete ALL other service messages (pinned, title change, photo change,
+        # group created, etc.) when 'delete_all_system_msg' or legacy
+        # 'delete_service' is on. Excludes join/leave (handled above).
+        application.add_handler(MessageHandler(
+            filters.StatusUpdate.ALL
+            & ~filters.StatusUpdate.NEW_CHAT_MEMBERS
+            & ~filters.StatusUpdate.LEFT_CHAT_MEMBER,
+            handle_service_message
         ))
         
         # Handle forwarded messages for verification (private chats only)
