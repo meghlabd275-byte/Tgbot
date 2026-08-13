@@ -23,7 +23,10 @@ class WelcomeSettings(Base):
     welcome_media = Column(String(255))  # file_id for photo/video
     media_type = Column(String(50))  # photo, video, gif
     delete_welcome = Column(Integer, default=0)  # seconds to delete welcome message
-    delete_service = Column(Boolean, default=False)  # delete service messages
+    delete_service = Column(Boolean, default=False)  # delete all service messages (legacy master toggle)
+    # Granular Join-Hider controls (like @joinhider_bot)
+    delete_joined_msg = Column(Boolean, default=False)  # delete "X joined" service messages
+    delete_left_msg = Column(Boolean, default=False)     # delete "X left" service messages
     welcome_buttons = Column(Text)  # JSON string for buttons
     captcha_enabled = Column(Boolean, default=False)
     captcha_time = Column(Integer, default=300)  # 5 minutes
@@ -281,9 +284,82 @@ async def cleanservice_command(update: Update, context: ContextTypes.DEFAULT_TYP
         
         await update.message.reply_text(
             f"✅ Service message deletion {'enabled' if status else 'disabled'}.\n"
-            f"{'Join/leave messages will be automatically deleted.' if status else ''}"
+            f"{'Join/leave messages will be automatically deleted.' if status else ''}\n"
+            f"💡 For granular control use `/joinhider` (separate joined/left toggles).",
+            parse_mode='Markdown'
         )
     
+    finally:
+        session.close()
+
+@is_admin_command
+@is_group_command
+async def joinhider_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Granular Join-Hider control (mirrors @joinhider_bot).
+
+    Usage:
+      /joinhider                          -> show current settings
+      /joinhider joined on|off            -> delete "X joined" service messages
+      /joinhider left on|off              -> delete "X left" service messages
+      /joinhider all on|off               -> delete both joined + left messages
+    """
+    chat_id = update.effective_chat.id
+    session = db.get_session()
+    try:
+        settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
+        if not settings:
+            settings = WelcomeSettings(chat_id=chat_id)
+            session.add(settings)
+
+        if not context.args:
+            await update.message.reply_text(
+                "🚪 **Join Hider** — hide system join/leave messages\n\n"
+                f"• Delete joined messages: {'✅' if settings.delete_joined_msg else '❌'}\n"
+                f"• Delete left messages: {'✅' if settings.delete_left_msg else '❌'}\n"
+                f"• Delete all service (legacy): {'✅' if settings.delete_service else '❌'}\n\n"
+                "**Commands:**\n"
+                "• `/joinhider joined on|off` — hide \"X joined\" messages\n"
+                "• `/joinhider left on|off` — hide \"X left\" messages\n"
+                "• `/joinhider all on|off` — hide both\n"
+                "• `/cleanservice on|off` — legacy master toggle",
+                parse_mode='Markdown',
+            )
+            return
+
+        sub = context.args[0].lower()
+
+        def _bool(val: str) -> bool:
+            return val.lower() in ('on', 'yes', 'true', '1')
+
+        if sub == 'joined':
+            if len(context.args) < 2:
+                await update.message.reply_text("❌ Usage: `/joinhider joined on|off`", parse_mode='Markdown')
+                return
+            settings.delete_joined_msg = _bool(context.args[1])
+            msg = f"✅ Hiding 'joined' messages {'enabled' if settings.delete_joined_msg else 'disabled'}."
+        elif sub == 'left':
+            if len(context.args) < 2:
+                await update.message.reply_text("❌ Usage: `/joinhider left on|off`", parse_mode='Markdown')
+                return
+            settings.delete_left_msg = _bool(context.args[1])
+            msg = f"✅ Hiding 'left' messages {'enabled' if settings.delete_left_msg else 'disabled'}."
+        elif sub == 'all':
+            if len(context.args) < 2:
+                await update.message.reply_text("❌ Usage: `/joinhider all on|off`", parse_mode='Markdown')
+                return
+            val = _bool(context.args[1])
+            settings.delete_joined_msg = val
+            settings.delete_left_msg = val
+            msg = f"✅ Hiding all join/leave messages {'enabled' if val else 'disabled'}."
+        else:
+            await update.message.reply_text(
+                "❌ Unknown option. Use: joined, left, all", parse_mode='Markdown'
+            )
+            return
+
+        session.commit()
+        await update.message.reply_text(msg, parse_mode='Markdown')
     finally:
         session.close()
 
@@ -354,12 +430,18 @@ async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAUL
         if not settings:
             return
 
-        # Delete service message if enabled
-        if settings.delete_service:
+        # Delete the "X joined" service message if any join-hider toggle is on.
+        # delete_service is the legacy master toggle; delete_joined_msg is the
+        # granular control (mirrors @joinhider_bot's delete_user_joined_msg).
+        if settings.delete_service or settings.delete_joined_msg:
             try:
                 await context.bot.delete_message(chat_id, update.message.message_id)
             except:
                 pass
+            # If we deleted the service message AND there is no welcome/captcha
+            # to send, we're done (pure join-hider mode).
+            if not (settings.welcome_enabled or settings.captcha_enabled):
+                return
 
         for new_member in new_members:
             if new_member.is_bot:
@@ -514,12 +596,17 @@ async def handle_left_member_goodbye(update: Update, context: ContextTypes.DEFAU
         if not settings:
             return
         
-        # Delete service message if enabled
-        if settings.delete_service:
+        # Delete the "X left" service message if any join-hider toggle is on.
+        # delete_service is the legacy master toggle; delete_left_msg is the
+        # granular control (mirrors @joinhider_bot's delete_user_left_msg).
+        if settings.delete_service or settings.delete_left_msg:
             try:
                 await context.bot.delete_message(chat_id, update.message.message_id)
             except:
                 pass
+            # Pure join-hider mode: if no goodbye to send, stop here.
+            if not (settings.goodbye_enabled and settings.goodbye_message):
+                return
         
         # Send goodbye message
         if settings.goodbye_enabled and settings.goodbye_message:

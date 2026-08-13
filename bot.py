@@ -72,8 +72,12 @@ from handlers.filters import (
 
 from handlers.welcome import (
     setwelcome_command, setgoodbye_command, welcome_command, goodbye_command,
-    captcha_command, cleanservice_command, handle_new_member_welcome,
-    handle_left_member_goodbye, handle_captcha_callback
+    captcha_command, cleanservice_command, joinhider_command,
+    handle_new_member_welcome, handle_left_member_goodbye, handle_captcha_callback
+)
+
+from handlers.url_remover import (
+    removeurls_command, check_url_remover
 )
 
 from handlers.notes import (
@@ -101,6 +105,11 @@ logger = logging.getLogger(__name__)
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Combined message handler for all filters and checks"""
     try:
+        # For edited messages, only run the filter pipeline (URL remover, word/
+        # URL / spam / media filters) so users can't bypass them by editing a
+        # message after it passes initial checks. Skip the rest of the pipeline.
+        is_edited = update.edited_message is not None
+
         # Check night mode first
         if await check_night_mode(update, context):
             return
@@ -111,6 +120,10 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         # Check message filters (word filters, URL filters, media filters, spam)
         if await check_message_filters(update, context):
+            return
+
+        if is_edited:
+            # Nothing further to do for edited messages once filters pass.
             return
         
         # Check for note shortcuts (#notename)
@@ -231,6 +244,8 @@ def main():
         application.add_handler(CommandHandler("goodbye", goodbye_command))
         application.add_handler(CommandHandler("captcha", captcha_command))
         application.add_handler(CommandHandler("cleanservice", cleanservice_command))
+        application.add_handler(CommandHandler("joinhider", joinhider_command))
+        application.add_handler(CommandHandler("removeurls", removeurls_command))
         
         # Notes and rules commands
         application.add_handler(CommandHandler("save", save_command))
@@ -299,6 +314,13 @@ def main():
         # Media message handler for filters
         application.add_handler(MessageHandler(
             ~filters.COMMAND & ~filters.StatusUpdate.ALL,
+            handle_all_messages
+        ))
+
+        # Edited message handler — re-run filters (URL remover, word/url/spam/media)
+        # so that users cannot bypass link/word filters by editing a message after posting.
+        application.add_handler(MessageHandler(
+            filters.UpdateType.EDITED_MESSAGE & ~filters.COMMAND,
             handle_all_messages
         ))
         

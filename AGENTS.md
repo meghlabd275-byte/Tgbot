@@ -16,6 +16,8 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
 - `python test_bot.py` — 4 basic tests
 - `python test_advanced_bot.py` — 19 advanced tests (imports, tables, definitions)
 - `python test_functional.py` — 16 functional tests (exercises real command logic)
+- `python test_url_remover.py` — 11 tests (URL remover, join hider, edited-message filters)
+- Total: 36 tests. Run all: `python -m pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py -q`
 
 ## Critical bugs fixed (commit 26f40a3) — patterns to watch for
 1. **`db.<Model>` must exist as DatabaseManager attributes.** Handlers do
@@ -40,11 +42,22 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
    work for testing and introspection.
 
 ## Architecture
-- `bot.py` — entry point, registers all 84 commands + event/callback handlers.
+- `bot.py` — entry point, registers all commands + event/callback handlers, including
+  an `EditedMessageHandler` (via `filters.UpdateType.EDITED_MESSAGE`) so filters re-run
+  on edited messages (prevents bypassing URL/word filters by editing).
 - `database.py` — SQLAlchemy models (Chat/User/Admin/Ban/Warning/Mute/Whitelist)
-  + DatabaseManager with CRUD methods. `db` is the global instance.
-- `handlers/` — 12 modules, each may define its own models on the shared `Base`
+  + DatabaseManager with CRUD methods. `db` is the global instance. 22 tables.
+- `handlers/` — 13 modules, each may define its own models on the shared `Base`
   and call `update_*_database()` at import time to create tables.
+- `handlers/url_remover.py` — `/removeurls` auto-link-deletion system (mirrors
+  @RemoveURLsBot). `URLRemoverSettings` table. Detects URLs/invites in text AND
+  captions AND edited messages. Admins exempt. `check_url_remover()` is wired
+  into `check_message_filters`.
+- `handlers/welcome.py` — welcome/goodbye/captcha PLUS Join-Hider granular toggles
+  (`/joinhider joined|left|all`) via `delete_joined_msg`/`delete_left_msg` columns.
+- `handlers/filters.py` — word/URL/media/spam filters. `check_message_filters`
+  normalizes `update.message or update.edited_message` and checks captions.
+  `/lock url` is now functional (deletes messages containing URLs).
 - `utils.py` — decorators (`is_admin_command`, `is_group_command`), time parsing,
   user extraction, markdown formatting.
 - `web_dashboard.py` — Flask dashboard (separate from bot).

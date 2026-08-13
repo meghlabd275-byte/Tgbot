@@ -294,35 +294,47 @@ async def antispam_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def check_message_filters(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check message against all filters"""
-    if not update.message or not update.effective_user:
+    # Normalize: edited messages arrive as update.edited_message (update.message is None)
+    message = update.message or update.edited_message
+    if not message or not update.effective_user:
         return False
-    
+
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
-    message = update.message
-    
+
     # Skip admins and whitelisted users
     if db.is_admin(user_id, chat_id) or db.is_whitelisted(user_id, chat_id):
         return False
-    
+
+    # --- URL Remover (auto-remove all URLs/invites) - checks text AND captions ---
+    try:
+        from handlers.url_remover import check_url_remover
+        if await check_url_remover(update, context):
+            return True
+    except Exception as e:
+        logger.error(f"URL remover check failed: {e}")
+
+    # Text to check (includes captions for media messages)
+    text_to_check = message.text or message.caption or ''
+
     # Check word filters
-    if message.text:
+    if text_to_check:
         if await check_word_filters(update, context):
             return True
-    
-    # Check URL filters
-    if message.text and ('http' in message.text or 'www.' in message.text):
+
+    # Check URL filters (domain-based blocklist)
+    if text_to_check and ('http' in text_to_check or 'www.' in text_to_check or 't.me' in text_to_check):
         if await check_url_filters(update, context):
             return True
-    
+
     # Check media filters
     if await check_media_filters(update, context):
         return True
-    
+
     # Check spam patterns (only if anti-spam is enabled for this chat)
-    if message.text and is_antispam_enabled(chat_id) and await check_spam_patterns(update, context):
+    if text_to_check and is_antispam_enabled(chat_id) and await check_spam_patterns(update, context):
         return True
-    
+
     return False
 
 def is_antispam_enabled(chat_id: int) -> bool:
@@ -339,7 +351,8 @@ def is_antispam_enabled(chat_id: int) -> bool:
 async def check_word_filters(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check message against word filters"""
     chat_id = update.effective_chat.id
-    message_text = update.message.text.lower()
+    _msg = update.message or update.edited_message
+    message_text = (_msg.text or _msg.caption or '').lower()
     
     session = db.get_session()
     try:
@@ -363,7 +376,8 @@ async def check_word_filters(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def check_url_filters(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check message against URL filters"""
     chat_id = update.effective_chat.id
-    message_text = update.message.text
+    _msg = update.message or update.edited_message
+    message_text = _msg.text or _msg.caption or ''
     
     # Extract URLs
     urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', message_text)
@@ -400,7 +414,7 @@ async def check_url_filters(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def check_media_filters(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check message against media filters"""
     chat_id = update.effective_chat.id
-    message = update.message
+    message = update.message or update.edited_message
     
     # Determine message type
     media_type = None
@@ -428,12 +442,25 @@ async def check_media_filters(update: Update, context: ContextTypes.DEFAULT_TYPE
         media_type = 'forward'
     elif message.reply_to_message:
         media_type = 'reply'
-    
-    if not media_type:
-        return False
-    
+
     session = db.get_session()
     try:
+        # Check the 'url' lock type: delete any message containing a URL.
+        # This makes `/lock url` actually functional.
+        text_for_url = message.text or message.caption or ''
+        if text_for_url:
+            url_lock = session.query(MediaFilter).filter(
+                MediaFilter.chat_id == chat_id,
+                MediaFilter.media_type == 'url',
+                MediaFilter.is_locked == True
+            ).first()
+            if url_lock and ('http' in text_for_url or 'www.' in text_for_url or 't.me' in text_for_url):
+                await apply_filter_action(update, context, url_lock.action, "Locked media type: url")
+                return True
+
+        if not media_type:
+            return False
+
         media_filter = session.query(MediaFilter).filter(
             MediaFilter.chat_id == chat_id,
             MediaFilter.media_type == media_type,
@@ -451,7 +478,8 @@ async def check_media_filters(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def check_spam_patterns(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check message against spam patterns"""
-    message_text = update.message.text
+    _msg = update.message or update.edited_message
+    message_text = _msg.text or _msg.caption or ''
     
     for pattern in SPAM_PATTERNS:
         if re.search(pattern, message_text):
@@ -467,8 +495,9 @@ async def apply_filter_action(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = update.effective_user
     
     try:
-        # Always delete the message first
-        await context.bot.delete_message(chat_id, update.message.message_id)
+        # Always delete the message first (works for both normal and edited messages)
+        msg = update.effective_message
+        await context.bot.delete_message(chat_id, msg.message_id)
         
         if action == 'warn':
             db.add_warning(user_id, chat_id, context.bot.id, reason)

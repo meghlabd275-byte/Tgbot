@@ -66,6 +66,63 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /chatinfo - Get information about the current chat
 /verify - Learn about admin verification
 
+**[Admin] Welcome & Goodbye**
+/setwelcome <msg> - Set welcome message (vars: {first} {username} {mention} {chatname} {count})
+/setgoodbye <msg> - Set goodbye message
+/welcome on|off - Toggle welcome messages
+/goodbye on|off - Toggle goodbye messages
+/captcha on|off - Require new members to solve a captcha
+
+**[Admin] Join Hider (hide system messages)**
+/cleanservice on|off - Delete all join/leave service messages
+/joinhider - Show join-hider settings
+/joinhider joined on|off - Hide "X joined" messages
+/joinhider left on|off - Hide "X left" messages
+/joinhider all on|off - Hide both joined + left messages
+
+**[Admin] Filters & Anti-Spam**
+/addfilter <word> <action> - Add a word filter (actions: delete, warn, mute, kick, ban)
+/removefilter <word> - Remove a word filter
+/filters - List word filters
+/lock <type> - Lock a message type (url, photo, video, document, sticker, voice, etc.)
+/unlock <type> - Unlock a message type
+/locks - Show locked message types
+/antispam on|off - Toggle spam-pattern detection
+
+**[Admin] URL Remover (auto-delete links)**
+/removeurls on - Auto-delete messages containing web URLs (admins exempt)
+/removeurls off - Disable URL removal
+/removeurls invites on|off - Also remove Telegram t.me invite links
+/removeurls all on|off - Remove all link types (urls + invites + @links)
+/removeurls warn on|off - Also warn the sender
+/removeurls status - Show URL-remover settings
+
+**[Admin] Anti-Flood**
+/setflood <limit> - Set flood message limit (e.g. /setflood 10)
+/setfloodmode <mode> - Set flood action (ban, mute, kick)
+/flood - Show flood settings
+
+**[Admin] Notes & Rules**
+/save <name> <content> - Save a note (use #name to retrieve)
+/get <name> - Retrieve a note
+/clear <name> - Delete a note
+/notes - List all notes
+/setrules <text> - Set group rules
+/rules - View group rules
+/clearrules - Clear group rules
+
+**[Admin] Reports & Advanced**
+/report - Report a message (reply to it)
+/reports - View report settings
+/reporthistory - View report history
+/nightmode on|off - Toggle night mode
+/slowmode <seconds> - Set slow mode
+/addcmd <name> <response> - Add a custom command
+/delcmd <name> - Delete a custom command
+/listcmds - List custom commands
+/cleanup - Clean up old data
+/backup - Backup bot data
+
 **Admin Verification**
 Forward any message from a user to the bot in private to verify if they are an admin in any chat where the bot is present.
 

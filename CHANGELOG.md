@@ -2,6 +2,52 @@
 
 All notable changes to the Telegram Admin Bot will be documented in this file.
 
+## [1.2.0] - 2026-08-13
+
+### Added — URL Remove Bot features (mirrors @RemoveURLsBot / @RemoveSpamLinkBot / @RemoveHyperlinkBot)
+- New `/removeurls` command family for automatic deletion of messages containing links
+  - `/removeurls on|off` — toggle auto-removal of all web URLs (http(s)://, www., bare domains)
+  - `/removeurls invites on|off` — also remove Telegram t.me invite / joinchat links
+  - `/removeurls all on|off` — remove every link type (URLs + invites + @channel mentions)
+  - `/removeurls warn on|off` — also warn the sender after deleting
+  - `/removeurls status` — show current settings
+- New `handlers/url_remover.py` module with `URLRemoverSettings` table
+- Link detection now works on **photo/video captions** (not just message text)
+- Link detection now works on **edited messages** (prevents bypassing filters by editing)
+- Detects `t.me/`, `t.me/joinchat/`, `t.me/+hash`, and bare domains (e.g. `example.com`)
+- Admins and whitelisted users are always exempt
+
+### Added — Join Hider features (mirrors @joinhider_bot)
+- New `/joinhider` command with granular toggles for hiding system service messages
+  - `/joinhider joined on|off` — hide "X joined the group" service messages
+  - `/joinhider left on|off` — hide "X left the group" service messages
+  - `/joinhider all on|off` — hide both join and leave service messages
+  - `/joinhider` (no args) — show current join-hider settings
+- New `delete_joined_msg` and `delete_left_msg` columns on `WelcomeSettings` table
+- `/cleanservice` retained as legacy master toggle and now cross-references `/joinhider`
+
+### Added — We Group Bot features (group management)
+- Extended `/help` with complete, categorized command listing for all 50+ commands
+- Existing welcome/goodbye/captcha/rules/stats features documented and verified
+
+### Fixed
+- `/lock url` now actually deletes messages containing URLs (previously set a lock that was never checked)
+- `check_message_filters`, `check_word_filters`, `check_url_filters`, `check_spam_patterns`, and `check_media_filters` now correctly inspect message **captions** in addition to text
+- Filter pipeline no longer crashes on edited messages (`update.message` is None for edits)
+- `apply_filter_action` now uses `update.effective_message` so it works for both regular and edited messages
+
+### Tests
+- New `test_url_remover.py` — 11 tests covering URL detection, caption handling, edited-message handling, admin exemption, invite removal, join-hider schema, and command registration
+- Total: 36 tests passing (25 original + 11 new)
+
+## [1.1.0] - 2025-06-15
+
+### Added
+- Supabase managed PostgreSQL backend (see `SUPABASE_SETUP.md`)
+  - `config.py` resolves DB URL with priority: `SUPABASE_DB_URL` > Supabase components > `DATABASE_URL`
+  - `supabase_client.py` REST wrapper, degrades gracefully without credentials
+  - Falls back to local SQLite when Supabase is not configured
+
 ## [1.0.0] - 2025-06-15
 
 ### Added
