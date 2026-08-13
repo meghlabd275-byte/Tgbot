@@ -79,6 +79,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /joinhider joined on|off - Hide "X joined" messages
 /joinhider left on|off - Hide "X left" messages
 /joinhider all on|off - Hide both joined + left messages
+/joinhider system on|off - Hide ALL service messages (pins, title/photo changes)
 
 **[Admin] Filters & Anti-Spam**
 /addfilter <word> <action> - Add a word filter (actions: delete, warn, mute, kick, ban)

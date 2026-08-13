@@ -16,8 +16,8 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
 - `python test_bot.py` — 4 basic tests
 - `python test_advanced_bot.py` — 19 advanced tests (imports, tables, definitions)
 - `python test_functional.py` — 16 functional tests (exercises real command logic)
-- `python test_url_remover.py` — 11 tests (URL remover, join hider, edited-message filters)
-- Total: 36 tests. Run all: `python -m pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py -q`
+- `python test_url_remover.py` — 15 tests (URL remover, join hider, edited-message filters, hidden-hyperlink/entity detection)
+- Total: 40 tests. Run all: `python -m pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py -q`
 
 ## Critical bugs fixed (commit 26f40a3) — patterns to watch for
 1. **`db.<Model>` must exist as DatabaseManager attributes.** Handlers do
@@ -51,10 +51,13 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
   and call `update_*_database()` at import time to create tables.
 - `handlers/url_remover.py` — `/removeurls` auto-link-deletion system (mirrors
   @RemoveURLsBot). `URLRemoverSettings` table. Detects URLs/invites in text AND
-  captions AND edited messages. Admins exempt. `check_url_remover()` is wired
+  captions AND edited messages AND hidden hyperlinks (message entities of type
+  text_link/url). Admins exempt. `check_url_remover()` is wired
   into `check_message_filters`.
 - `handlers/welcome.py` — welcome/goodbye/captcha PLUS Join-Hider granular toggles
-  (`/joinhider joined|left|all`) via `delete_joined_msg`/`delete_left_msg` columns.
+  (`/joinhider joined|left|all|system`) via `delete_joined_msg`/`delete_left_msg`/
+  `delete_all_system_msg` columns. `handle_service_message` deletes ALL service
+  messages (pins, title/photo changes) when system toggle is on.
 - `handlers/filters.py` — word/URL/media/spam filters. `check_message_filters`
   normalizes `update.message or update.edited_message` and checks captions.
   `/lock url` is now functional (deletes messages containing URLs).
