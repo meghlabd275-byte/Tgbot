@@ -261,6 +261,21 @@ The bot uses the following new database tables:
 - `#<notename>` - Get note quickly
 - Custom commands (as defined by admins)
 
+#### Invite Links:
+- `/link` - Create a unique invite link for each user (joins tracked per link)
+- `/link_stat` / `/linkstats` - Show total joins per invite link
+
+#### Admin-Controlled Member Commands (`!name`):
+- `/usercmd add <name> <response>` - Create a member-usable command
+- `/usercmd del <name>` - Delete a member command
+- `/usercmd on|off <name>` - Enable/disable a member command
+- `/usercmd setup <name> <response>` - Update a member command's response
+- `/usercmd list` - List all member commands
+
+#### Chat Statistics:
+- `/stats` / `/statistics` - Total active members, admins, bans, warnings, mutes, whitelist
+- `/top` / `/leaderboard` - Top active members by message count
+
 ---
 
 ## 🔧 Configuration

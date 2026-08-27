@@ -2,6 +2,35 @@
 
 All notable changes to the Telegram Admin Bot will be documented in this file.
 
+## [1.5.0] - 2026-08-27
+
+### Added - Invite links, user commands, and chat statistics
+- **Invite links** (`handlers/invite_links.py`):
+  - `/link` — creates a unique, per-user invite link for the group (named links
+    so joins can be attributed back to the creator).
+  - `/link_stat` (alias `/linkstats`) — shows total joins per invite link; admins
+    see every link, members only their own.
+  - Join attribution via Telegram's `chat_member` update `invite_link.name`,
+    recorded in the new `invite_links` and `link_joins` tables.
+- **User commands** (`handlers/user_commands.py`):
+  - `/usercmd` — group admins can `add`, `del`, `on`/`off`, `setup`, and `list`
+    member-usable `!name` commands (start/setup/stop controls).
+  - Members invoke a command by typing `!name`; only admin-enabled commands run.
+  - New `user_commands` table.
+- **Chat statistics** (`handlers/stats.py`):
+  - `/stats` (alias `/statistics`) — total members, active members, total
+    messages, admin/ban/warning/mute/whitelist counts, plus a top-5 leaderboard.
+  - `/top` (alias `/leaderboard`) — top-15 most active members by message count.
+  - Persistent per-chat message counting in the new `message_counts` table
+    (incremented from the message pipeline, survives restarts).
+
+### Changed - Documentation
+- README.md, README_COMPLETE.md, FEATURE_LIST.md, ADVANCED_FEATURES.md,
+  API_REFERENCE.md and CHANGELOG.md updated with the new commands and tables.
+
+### Tests
+- All existing test suites remain green (63 tests).
+
 ## [1.4.0] - 2026-08-27
 
 ### Added - Owner kill-switch (disable / resume all services)

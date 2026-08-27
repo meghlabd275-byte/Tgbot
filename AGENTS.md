@@ -81,6 +81,21 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
   `pool_recycle=3600` for MySQL.
 
 ## Feature-parity work (Rose / GroupHelp / WeGroup)
+- `handlers/invite_links.py` — `/link` (unique per-user invite links; named via
+  `name=` so joins can be attributed back) + `/link_stat`/`/linkstats` (join
+  totals per link; admins see all, members only their own). Join attribution is
+  done in `events.handle_chat_member_update` which reads
+  `update.chat_member.invite_link.name` on join. Tables: `invite_links`,
+  `link_joins`.
+- `handlers/user_commands.py` — `/usercmd` (admin-controlled member commands).
+  Members invoke them by typing `!name` in the group; `handle_user_command()` is
+  wired into `bot.handle_all_messages` BEFORE `handle_custom_command`. Subverbs:
+  `add`, `del`, `on|start|enable`, `off|stop|disable`, `setup|set`, `list`.
+  Table: `user_commands` (trigger defaults to `!`).
+- `handlers/stats.py` — `/stats`/`/statistics` + `/top`/`/leaderboard`.
+  Persistent per-chat message counts in the `message_counts` table
+  (UniqueConstraint chat_id+user_id); `increment_message_count()` is called from
+  `events.handle_message` for non-command text messages. Tables: `message_counts`.
 - `handlers/federations.py` — full federation commands (`/fednew`, `/fban`,
   `/fedjoin`, ...) with tables `federations`, `federation_admins`,
   `federation_chats` (chat_id unique), `federation_bans`, `federation_mutes`.

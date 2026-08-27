@@ -53,6 +53,9 @@ A comprehensive Telegram bot for advanced group management and moderation, built
 - ✅ `/id` - Get user/chat IDs
 - ✅ `/chatinfo` - Chat statistics
 - ✅ `/warnings` - Check warning status
+- ✅ `/stats` / `/top` - Total & top active members, admins, bans
+- ✅ `/link` / `/link_stat` - Unique per-user invite links + join stats
+- ✅ `/usercmd` - Admin-configured member commands (`!name`)
 - ✅ Web dashboard for monitoring (optional)
 - ✅ Health check endpoints
 - ✅ Comprehensive logging and error handling

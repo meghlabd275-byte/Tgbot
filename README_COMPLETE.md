@@ -185,6 +185,26 @@ python web_dashboard.py
 - `/about` - Bot information and features
 - `/commands` - Quick command reference
 
+### 🔗 Invite Links & Join Statistics
+- `/link` - Create a unique invite link for each user (joins tracked per link)
+- `/link_stat` / `/linkstats` - Show total joins per invite link (admins see all)
+- Join attribution via Telegram's invite-link "name" field
+- Per-user link reuse (each member keeps one link)
+
+### ⚙️ User Commands (admins configure, members use)
+- `/usercmd add <name> <response>` - Create a member-usable `!name` command
+- `/usercmd del <name>` - Delete a member command
+- `/usercmd on|off <name>` - Enable/disable a member command
+- `/usercmd setup <name> <response>` - Update a member command's response
+- `/usercmd list` - List all member commands
+- Members invoke them with `!name` in the group
+
+### 📊 Chat Statistics & Leaderboards
+- `/stats` / `/statistics` - Total active members, admins, bans, warnings, mutes, whitelist
+- `/top` / `/leaderboard` - Top active members by message count
+- Persistent message-count tracking (survives bot restarts)
+- Per-chat aggregation with username resolution
+
 ### 🌐 Web Dashboard (Optional)
 - Real-time statistics dashboard
 - Chat and user management interface

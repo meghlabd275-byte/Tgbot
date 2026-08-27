@@ -27,6 +27,10 @@ A comprehensive Telegram bot for advanced group management and moderation with e
 - **User Profiles**: Comprehensive user information and statistics
 - **Activity Tracking**: Last active timestamps and reputation system
 - **Reset Functions**: Clear user violations and reset reputation
+- **Chat Statistics**: `/stats` for total/top active members, admin & ban counts
+- **Leaderboards**: `/top` for the most active members by message count
+- **Invite Links**: `/link` for unique per-user invite links, `/link_stat` for join totals
+- **User Commands**: Admins create member-usable `!commands` via `/usercmd`
 
 ### 🔐 Security Features
 - **Admin Verification**: Verify admin status by forwarding messages
@@ -116,6 +120,20 @@ LOG_LEVEL=INFO
 - `/lastactive` - Last activity check
 - `/id` - Get user/chat IDs
 - `/chatinfo` - Chat statistics
+- `/stats` / `/statistics` - Total active members, admins, bans, and more
+- `/top` / `/leaderboard` - Top active members by message count
+
+### Invite Links
+- `/link` - Create your own unique invite link (joins are tracked per link)
+- `/link_stat` / `/linkstats` - Show total joins per invite link
+
+### User Commands (admins configure, members use)
+- `/usercmd add <name> <response>` - Create a member-usable `!name` command
+- `/usercmd del <name>` - Delete a member command
+- `/usercmd on|off <name>` - Enable/disable a member command
+- `/usercmd setup <name> <response>` - Update a member command's response
+- `/usercmd list` - List all member commands
+- Members invoke them by typing `!name` in the group
 
 ### Global Commands
 All user management commands have global variants (prefix with `g`):

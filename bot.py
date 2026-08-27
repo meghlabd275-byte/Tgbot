@@ -121,6 +121,18 @@ from handlers.services import (
     disable_command, resume_command, disabledgroups_command
 )
 
+from handlers.invite_links import (
+    link_command, link_stat_command
+)
+
+from handlers.user_commands import (
+    usercmd_command, handle_user_command
+)
+
+from handlers.stats import (
+    stats_command, top_command
+)
+
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -149,20 +161,20 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Check night mode first
         if await check_night_mode(update, context):
             return
-        
+
         # Check flood protection
         if await check_flood(update, context):
             return
-        
+
         # Enforce slow mode (deletes too-fast messages, admins/whitelist exempt)
         if await check_slow_mode(update, context):
             return
-        
+
         # Ignored users: the bot takes no automated action against them.
         from handlers.approvals import is_ignored
         if update.effective_user and is_ignored(update.effective_user.id, chat_id):
             return
-        
+
         # Check message filters (word filters, URL filters, media filters, spam)
         if await check_message_filters(update, context):
             return
@@ -170,21 +182,25 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         if is_edited:
             # Nothing further to do for edited messages once filters pass.
             return
-        
+
         # Check for note shortcuts (#notename)
         if await handle_note_shortcut(update, context):
             return
-        
+
+        # Check for admin-configured user commands (!name)
+        if await handle_user_command(update, context):
+            return
+
         # Check for custom commands
         if await handle_custom_command(update, context):
             return
 
         # Handle cleanup CONFIRM reply (staged by /cleanup)
         await handle_cleanup_confirmation(update, context)
-        
+
         # Regular message handling
         await handle_message(update, context)
-        
+
     except Exception as e:
         logger.error(f"Error in handle_all_messages: {e}")
         await error_handler(update, context)
@@ -195,15 +211,15 @@ def main():
         # Validate configuration
         Config.validate()
         logger.info("Configuration validated successfully")
-        
+
         # Create application
         application = Application.builder().token(Config.BOT_TOKEN).build()
-        
+
         # Add command handlers
-        
+
         # Admin utility commands
         application.add_handler(CommandHandler("fileid", fileid_command))
-        
+
         # Chat management commands
         application.add_handler(CommandHandler("activate", activate_command))
         application.add_handler(CommandHandler("silence", silence_command))
@@ -221,29 +237,29 @@ def main():
         application.add_handler(CommandHandler("adminlist", adminlist_command))
         application.add_handler(CommandHandler("admins", adminlist_command))
         application.add_handler(CommandHandler("warnmode", warnmode_command))
-        
+
         # User management commands
         application.add_handler(CommandHandler("promote", promote_command))
         application.add_handler(CommandHandler("title", title_command))
         application.add_handler(CommandHandler("demote", demote_command))
-        
+
         application.add_handler(CommandHandler("ban", ban_command))
         application.add_handler(CommandHandler("sban", sban_command))
         application.add_handler(CommandHandler("gban", gban_command))
         application.add_handler(CommandHandler("sgban", sgban_command))
-        
+
         application.add_handler(CommandHandler("unban", unban_command))
         application.add_handler(CommandHandler("gunban", gunban_command))
         application.add_handler(CommandHandler("banlist", banlist_command))
-        
+
         application.add_handler(CommandHandler("kick", kick_command))
         application.add_handler(CommandHandler("skick", skick_command))
         application.add_handler(CommandHandler("gkick", gkick_command))
-        
+
         application.add_handler(CommandHandler("mute", mute_command))
         application.add_handler(CommandHandler("unmute", unmute_command))
         application.add_handler(CommandHandler("smute", smute_command))
-        
+
         # Warning system commands
         application.add_handler(CommandHandler("warn", warn_command))
         application.add_handler(CommandHandler("gwarn", gwarn_command))
@@ -251,7 +267,7 @@ def main():
         application.add_handler(CommandHandler("unwarn", unwarn_command))
         application.add_handler(CommandHandler("resetwarns", resetwarns_command))
         application.add_handler(CommandHandler("warnings", warnings_command))
-        
+
         # Whitelist system commands
         application.add_handler(CommandHandler("whitelist", whitelist_command))
         application.add_handler(CommandHandler("gwhitelist", gwhitelist_command))
@@ -259,7 +275,7 @@ def main():
         application.add_handler(CommandHandler("gunwhitelist", gunwhitelist_command))
         application.add_handler(CommandHandler("whitelisted", whitelisted_command))
         application.add_handler(CommandHandler("checkwhitelist", checkwhitelist_command))
-        
+
         # User info commands
         application.add_handler(CommandHandler("resetuser", resetuser_command))
         application.add_handler(CommandHandler("resetrep", resetrep_command))
@@ -267,22 +283,22 @@ def main():
         application.add_handler(CommandHandler("lastactive", lastactive_command))
         application.add_handler(CommandHandler("id", id_command))
         application.add_handler(CommandHandler("chatinfo", chatinfo_command))
-        
+
         # Verification commands
         application.add_handler(CommandHandler("verify", verify_command))
-        
+
         # Help commands
         application.add_handler(CommandHandler("help", help_command))
         application.add_handler(CommandHandler("start", start_command))
         application.add_handler(CommandHandler("about", about_command))
         application.add_handler(CommandHandler("commands", commands_command))
-        
+
         # Anti-flood commands
         application.add_handler(CommandHandler("setflood", setflood_command))
         application.add_handler(CommandHandler("setfloodmode", setfloodmode_command))
         application.add_handler(CommandHandler("flood", flood_command))
         application.add_handler(CommandHandler("antiraid", antiraid_command))
-        
+
         # Filter commands
         application.add_handler(CommandHandler("addfilter", addfilter_command))
         application.add_handler(CommandHandler("removefilter", removefilter_command))
@@ -295,7 +311,7 @@ def main():
         application.add_handler(CommandHandler("allowlist", allowlist_command))
         application.add_handler(CommandHandler("unallowlist", unallowlist_command))
         application.add_handler(CommandHandler("allowslist", allowlist_command))
-        
+
         # Welcome system commands
         application.add_handler(CommandHandler("setwelcome", setwelcome_command))
         application.add_handler(CommandHandler("setgoodbye", setgoodbye_command))
@@ -305,7 +321,7 @@ def main():
         application.add_handler(CommandHandler("cleanservice", cleanservice_command))
         application.add_handler(CommandHandler("joinhider", joinhider_command))
         application.add_handler(CommandHandler("removeurls", removeurls_command))
-        
+
         # Notes and rules commands
         application.add_handler(CommandHandler("save", save_command))
         application.add_handler(CommandHandler("get", get_command))
@@ -314,12 +330,12 @@ def main():
         application.add_handler(CommandHandler("setrules", setrules_command))
         application.add_handler(CommandHandler("rules", rules_command))
         application.add_handler(CommandHandler("clearrules", clearrules_command))
-        
+
         # Report system commands
         application.add_handler(CommandHandler("report", report_command))
         application.add_handler(CommandHandler("reports", reports_command))
         application.add_handler(CommandHandler("reporthistory", reporthistory_command))
-        
+
         # Advanced feature commands
         application.add_handler(CommandHandler("setlang", setlang_command))
         application.add_handler(CommandHandler("nightmode", nightmode_command))
@@ -329,7 +345,7 @@ def main():
         application.add_handler(CommandHandler("listcmds", listcmds_command))
         application.add_handler(CommandHandler("cleanup", cleanup_command))
         application.add_handler(CommandHandler("backup", backup_command))
-        
+
         # Federation commands
         application.add_handler(CommandHandler("fednew", fednew_command))
         application.add_handler(CommandHandler("newfed", fednew_command))
@@ -384,15 +400,30 @@ def main():
         application.add_handler(CommandHandler("resume", resume_command))
         application.add_handler(CommandHandler("resumeservices", resume_command))
         application.add_handler(CommandHandler("disabledgroups", disabledgroups_command))
-        
+
+        # Invite-link system (unique per-user links + join statistics)
+        application.add_handler(CommandHandler("link", link_command))
+        application.add_handler(CommandHandler("link_stat", link_stat_command))
+        application.add_handler(CommandHandler("linkstats", link_stat_command))
+
+        # Admin-controlled member commands (!name)
+        application.add_handler(CommandHandler("usercmd", usercmd_command))
+        application.add_handler(CommandHandler("usercmds", usercmd_command))
+
+        # Chat statistics / leaderboard
+        application.add_handler(CommandHandler("stats", stats_command))
+        application.add_handler(CommandHandler("statistics", stats_command))
+        application.add_handler(CommandHandler("top", top_command))
+        application.add_handler(CommandHandler("leaderboard", top_command))
+
         # Event handlers
         application.add_handler(MessageHandler(
-            filters.StatusUpdate.NEW_CHAT_MEMBERS, 
+            filters.StatusUpdate.NEW_CHAT_MEMBERS,
             handle_new_member_welcome
         ))
-        
+
         application.add_handler(MessageHandler(
-            filters.StatusUpdate.LEFT_CHAT_MEMBER, 
+            filters.StatusUpdate.LEFT_CHAT_MEMBER,
             handle_left_member_goodbye
         ))
 
@@ -405,13 +436,13 @@ def main():
             & ~filters.StatusUpdate.LEFT_CHAT_MEMBER,
             handle_service_message
         ))
-        
+
         # Handle forwarded messages for verification (private chats only)
         application.add_handler(MessageHandler(
             filters.FORWARDED & filters.ChatType.PRIVATE,
             handle_forwarded_message
         ))
-        
+
         # Chat member updates (promotions, bans, etc.)
         application.add_handler(ChatMemberHandler(
             handle_chat_member_update,
@@ -425,28 +456,28 @@ def main():
             handle_bot_added_to_chat,
             ChatMemberHandler.MY_CHAT_MEMBER
         ))
-        
+
         # Callback query handlers
         from telegram.ext import CallbackQueryHandler
         application.add_handler(CallbackQueryHandler(
-            handle_captcha_callback, 
+            handle_captcha_callback,
             pattern=r"^captcha_"
         ))
         application.add_handler(CallbackQueryHandler(
-            handle_report_callback, 
+            handle_report_callback,
             pattern=r"^report_"
         ))
         application.add_handler(CallbackQueryHandler(
             handle_connect_callback,
             pattern=r"^connect_"
         ))
-        
+
         # General message handler (should be last)
         application.add_handler(MessageHandler(
             filters.TEXT & ~filters.COMMAND,
             handle_all_messages
         ))
-        
+
         # Media message handler for filters
         application.add_handler(MessageHandler(
             ~filters.COMMAND & ~filters.StatusUpdate.ALL,
@@ -459,19 +490,19 @@ def main():
             filters.UpdateType.EDITED_MESSAGE & ~filters.COMMAND,
             handle_all_messages
         ))
-        
+
         # Error handler
         application.add_error_handler(error_handler)
-        
+
         logger.info("Bot handlers registered successfully")
-        
+
         # Start the bot
         logger.info("🤖 Starting Telegram Admin Bot...")
         application.run_polling(
             allowed_updates=Update.ALL_TYPES,
             drop_pending_updates=True
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to start bot: {e}")
         raise

@@ -273,6 +273,41 @@ disabling owner and timestamp.
 **Usage**: `/commands`  
 **Permissions**: None  
 
+#### `/link`
+**Description**: Create a unique invite link for the requesting user. Each member
+gets their own named link so joins can be attributed back to them.
+**Usage**: `/link`
+**Permissions**: None (group only)
+**Behavior**: Reuses an existing link if the user already created one.
+
+#### `/link_stat` (alias `/linkstats`)
+**Description**: Show total joins per invite link. Admins see all links; regular
+members only see their own.
+**Usage**: `/link_stat`
+**Permissions**: None (group only)
+
+#### `/usercmd`
+**Description**: Admin control panel for member-usable custom commands (`!name`).
+**Usage**:
+- `/usercmd add <name> <response>` — create a command
+- `/usercmd del <name>` — delete a command
+- `/usercmd on|off <name>` — enable/disable a command
+- `/usercmd setup <name> <response>` — update a command's response
+- `/usercmd list` — list all commands
+**Permissions**: Admin only (group only)
+**Member usage**: Members type `!name` in the group to trigger it.
+
+#### `/stats` (alias `/statistics`)
+**Description**: Show chat statistics — total members, active members, total
+messages, admins, bans, warnings, mutes, whitelist, plus a top-5 leaderboard.
+**Usage**: `/stats`
+**Permissions**: None (group only)
+
+#### `/top` (alias `/leaderboard`)
+**Description**: Show the top-15 most active members by message count.
+**Usage**: `/top`
+**Permissions**: None (group only)
+
 ## Database Schema
 
 ### Tables
@@ -377,6 +412,56 @@ CREATE TABLE disabled_chats (
     reason TEXT,
     scope VARCHAR(16) DEFAULT 'all',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### `invite_links`
+```sql
+CREATE TABLE invite_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id BIGINT,
+    name VARCHAR(64),
+    invite_link VARCHAR(255),
+    created_by BIGINT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### `link_joins`
+```sql
+CREATE TABLE link_joins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id BIGINT,
+    invite_name VARCHAR(64),
+    user_id BIGINT,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### `user_commands`
+```sql
+CREATE TABLE user_commands (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id BIGINT,
+    name VARCHAR(64),
+    response TEXT,
+    trigger VARCHAR(16) DEFAULT '!',
+    enabled BOOLEAN DEFAULT TRUE,
+    created_by BIGINT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### `message_counts`
+```sql
+CREATE TABLE message_counts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id BIGINT,
+    user_id BIGINT,
+    count INTEGER DEFAULT 1,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(chat_id, user_id)
 );
 ```
 
