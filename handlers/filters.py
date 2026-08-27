@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, ChatPermissions
 from telegram.ext import ContextTypes
 from database import db
 from utils import is_admin_command, is_group_command
@@ -724,11 +724,10 @@ async def apply_filter_action(update: Update, context: ContextTypes.DEFAULT_TYPE
             from datetime import datetime, timedelta
             until_date = datetime.now() + timedelta(hours=1)
             
-            chat = await context.bot.get_chat(chat_id)
             await context.bot.restrict_chat_member(
                 chat_id=chat_id,
                 user_id=user_id,
-                permissions=chat.permissions,
+                permissions=ChatPermissions(can_send_messages=False),
                 until_date=until_date
             )
             db.add_mute(user_id, chat_id, context.bot.id, 3600, reason)

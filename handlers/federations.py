@@ -28,7 +28,7 @@ import uuid
 from sqlalchemy import Column, Integer, String, Boolean, Text, BigInteger, DateTime
 from sqlalchemy.sql import func
 
-from telegram import Update
+from telegram import Update, ChatPermissions
 from telegram.ext import ContextTypes
 
 from database import Base, db
@@ -595,10 +595,9 @@ async def fedmute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         muted = 0
         for cid in get_fed_chat_ids(fed.id):
             try:
-                chat = await context.bot.get_chat(cid)
                 await context.bot.restrict_chat_member(
                     chat_id=cid, user_id=target_id,
-                    permissions=chat.permissions, until_date=until,
+                    permissions=ChatPermissions(can_send_messages=False), until_date=until,
                 )
                 muted += 1
             except Exception:

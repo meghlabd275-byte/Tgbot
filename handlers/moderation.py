@@ -7,6 +7,7 @@ tban) is honored anywhere warnings are handed out.
 import logging
 from datetime import datetime, timedelta
 
+from telegram import ChatPermissions
 from telegram.ext import ContextTypes
 
 from database import db
@@ -30,11 +31,10 @@ async def apply_warn_consequence(chat_id: int, user_id: int, actor_id: int, cont
             return "kicked"
         elif mode == 'mute':
             until_date = datetime.now() + timedelta(hours=1)
-            chat = await context.bot.get_chat(chat_id)
             await context.bot.restrict_chat_member(
                 chat_id=chat_id,
                 user_id=user_id,
-                permissions=chat.permissions,
+                permissions=ChatPermissions(can_send_messages=False),
                 until_date=until_date,
             )
             db.add_mute(user_id, chat_id, actor_id, 3600, "Warning limit reached")

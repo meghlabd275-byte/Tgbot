@@ -1,4 +1,4 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions
 from telegram.ext import ContextTypes
 from database import db
 from utils import is_admin_command, is_group_command, format_user_mention
@@ -44,6 +44,7 @@ def update_reports_database():
 # Track report cooldowns
 report_cooldowns = {}
 
+@is_group_command
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Report a message or user"""
     if not update.message.reply_to_message:
@@ -257,11 +258,10 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
             elif action == 'mute':
                 from datetime import datetime, timedelta
                 until_date = datetime.now() + timedelta(hours=1)
-                chat = await context.bot.get_chat(chat_id)
                 await context.bot.restrict_chat_member(
                     chat_id=chat_id,
                     user_id=reported_user_id,
-                    permissions=chat.permissions,
+                    permissions=ChatPermissions(can_send_messages=False),
                     until_date=until_date
                 )
                 db.add_mute(reported_user_id, chat_id, admin_id, 3600, f"Report: {report.reason}")

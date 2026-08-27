@@ -85,57 +85,56 @@ def test_no_duplicate_db_methods():
     return True
 
 
-def test_mute_command_uses_awaited_permissions():
-    """mute_command must await get_chat before restrict_chat_member."""
+def test_mute_command_uses_mute_permissions():
+    """mute_command must restrict can_send_messages=False (actual mute)."""
     import inspect
     from handlers.user_management import mute_command
     src = inspect.getsource(inspect.unwrap(mute_command))
     assert "permissions=context.bot.get_chat(chat_id).permissions" not in src, \
         "mute_command still uses non-awaited get_chat().permissions"
-    assert "chat = await context.bot.get_chat(chat_id)" in src, \
-        "mute_command does not await get_chat"
-    assert "permissions=chat.permissions" in src
-    print("✅ mute_command awaits get_chat for permissions")
+    assert "permissions=ChatPermissions(can_send_messages=False)" in src, \
+        "mute_command does not restrict message sending"
+    print("✅ mute_command restricts can_send_messages=False")
     return True
 
 
-def test_smute_command_uses_awaited_permissions():
+def test_smute_command_uses_mute_permissions():
     import inspect
     from handlers.user_management import smute_command
     src = inspect.getsource(inspect.unwrap(smute_command))
     assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
-    assert "chat = await context.bot.get_chat(chat_id)" in src
-    print("✅ smute_command awaits get_chat for permissions")
+    assert "permissions=ChatPermissions(can_send_messages=False)" in src
+    print("✅ smute_command restricts can_send_messages=False")
     return True
 
 
-def test_antiflood_uses_awaited_permissions():
+def test_antiflood_uses_mute_permissions():
     import inspect
     from handlers.antiflood import check_flood
     src = inspect.getsource(check_flood)
     assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
-    assert "chat = await context.bot.get_chat(chat_id)" in src
-    print("✅ antiflood check_flood awaits get_chat for permissions")
+    assert "permissions=ChatPermissions(can_send_messages=False)" in src
+    print("✅ antiflood check_flood restricts can_send_messages=False")
     return True
 
 
-def test_filters_apply_action_uses_awaited_permissions():
+def test_filters_apply_action_uses_mute_permissions():
     import inspect
     from handlers.filters import apply_filter_action
     src = inspect.getsource(apply_filter_action)
     assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
-    assert "chat = await context.bot.get_chat(chat_id)" in src
-    print("✅ filters.apply_filter_action awaits get_chat for permissions")
+    assert "permissions=ChatPermissions(can_send_messages=False)" in src
+    print("✅ filters.apply_filter_action restricts can_send_messages=False")
     return True
 
 
-def test_reports_mute_uses_awaited_permissions():
+def test_reports_mute_uses_mute_permissions():
     import inspect
     from handlers.reports import handle_report_callback
     src = inspect.getsource(handle_report_callback)
     assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
-    assert "chat = await context.bot.get_chat(chat_id)" in src
-    print("✅ reports.handle_report_callback mute awaits get_chat for permissions")
+    assert "permissions=ChatPermissions(can_send_messages=False)" in src
+    print("✅ reports.handle_report_callback mute restricts can_send_messages=False")
     return True
 
 
@@ -393,11 +392,11 @@ def main():
     tests = [
         test_db_model_attributes,
         test_no_duplicate_db_methods,
-        test_mute_command_uses_awaited_permissions,
-        test_smute_command_uses_awaited_permissions,
-        test_antiflood_uses_awaited_permissions,
-        test_filters_apply_action_uses_awaited_permissions,
-        test_reports_mute_uses_awaited_permissions,
+        test_mute_command_uses_mute_permissions,
+        test_smute_command_uses_mute_permissions,
+        test_antiflood_uses_mute_permissions,
+        test_filters_apply_action_uses_mute_permissions,
+        test_reports_mute_uses_mute_permissions,
         test_captcha_uses_chatpermissions,
         test_antispam_persists,
         test_antispam_gate_in_check_filters,

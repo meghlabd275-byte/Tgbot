@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, ChatPermissions
 from telegram.ext import ContextTypes
 from telegram.constants import ChatMemberStatus
 from telegram.error import BadRequest
@@ -456,11 +456,10 @@ async def mute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             until_date = datetime.now() + timedelta(seconds=duration)
             
-            chat = await context.bot.get_chat(chat_id)
             await context.bot.restrict_chat_member(
                 chat_id=chat_id,
                 user_id=user_id,
-                permissions=chat.permissions,
+                permissions=ChatPermissions(can_send_messages=False),
                 until_date=until_date
             )
             
@@ -533,7 +532,7 @@ async def smute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.restrict_chat_member(
                 chat_id=chat_id,
                 user_id=user_id,
-                permissions=chat.permissions,
+                permissions=ChatPermissions(can_send_messages=False),
                 until_date=until_date
             )
             
