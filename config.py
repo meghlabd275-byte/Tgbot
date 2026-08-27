@@ -1,7 +1,10 @@
 import os
+import logging
 from dotenv import load_dotenv
 
-load_dotenv()
+logger = logging.getLogger(__name__)
+
+load_dotenv(override=False)
 
 SUPPORTED_SUPER_ADMIN_VALUE_ERROR = (
     "SUPER_ADMIN_ID is required. Set it to your Telegram user ID."
@@ -24,6 +27,21 @@ def _parse_super_admin_ids():
     return ids
 
 
+def _int_env(name, default):
+    """Read an integer environment variable, failing loudly on bad input."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.error(
+            "Environment variable %s = %r is not an integer; using default %r",
+            name, raw, default,
+        )
+        return default
+
+
 class Config:
     BOT_TOKEN = os.getenv('BOT_TOKEN')
     BOT_USERNAME = os.getenv('BOT_USERNAME')
@@ -34,10 +52,15 @@ class Config:
     SUPER_ADMIN_ID = _SUPER_ADMIN_IDS[0] if _SUPER_ADMIN_IDS else 0
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
-    # Bot settings (these can be overridden via environment variables)
-    MAX_WARNINGS = int(os.getenv('MAX_WARNINGS', '3'))
-    DEFAULT_MUTE_TIME = int(os.getenv('DEFAULT_MUTE_TIME', '3600'))  # seconds
-    PURGE_LIMIT = int(os.getenv('PURGE_LIMIT', '100'))  # max messages per purge
+    # --------------------------------------------------------------------
+    # Bot settings (overridable via environment variables). The parsing
+    # helpers below fail loudly on invalid values at import time, instead
+    # of silently trapping the exception via `int(...)` which would raise a
+    # ValueError and hide the underlying malformed variable.
+    # --------------------------------------------------------------------
+    MAX_WARNINGS = _int_env('MAX_WARNINGS', 3)
+    DEFAULT_MUTE_TIME = _int_env('DEFAULT_MUTE_TIME', 3600)  # seconds
+    PURGE_LIMIT = _int_env('PURGE_LIMIT', 100)  # max messages per purge
 
     # Extra super admin ids (optional comma/space separated)
     _EXTRA_SUPER_ADMINS = os.getenv('EXTRA_SUPER_ADMIN_IDS', '')

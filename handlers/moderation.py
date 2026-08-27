@@ -11,7 +11,6 @@ from telegram import ChatPermissions
 from telegram.ext import ContextTypes
 
 from database import db
-from utils import format_time_duration
 
 logger = logging.getLogger(__name__)
 

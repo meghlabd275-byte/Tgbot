@@ -25,7 +25,7 @@ Commands:
 import logging
 import uuid
 
-from sqlalchemy import Column, Integer, String, Boolean, Text, BigInteger, DateTime
+from sqlalchemy import Column, Integer, String, Text, BigInteger, DateTime
 from sqlalchemy.sql import func
 
 from telegram import Update, ChatPermissions

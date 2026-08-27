@@ -11,7 +11,6 @@ activity survives bot restarts. The ``handle_message`` event in ``events.py``
 increments the counter for every non-command text message in a registered chat.
 """
 import logging
-from datetime import datetime
 
 from sqlalchemy import Column, Integer, BigInteger, DateTime, UniqueConstraint
 from sqlalchemy.sql import func
@@ -52,8 +51,8 @@ def increment_message_count(chat_id: int, user_id: int):
             MessageCount.user_id == user_id,
         ).first()
         if row:
+            # `updated_at` is refreshed automatically via onupdate=func.now().
             row.count = (row.count or 0) + 1
-            row.updated_at = datetime.utcnow()
         else:
             session.add(MessageCount(chat_id=chat_id, user_id=user_id, count=1))
         session.commit()

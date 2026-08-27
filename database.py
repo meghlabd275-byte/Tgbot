@@ -1,7 +1,6 @@
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, BigInteger
-from sqlalchemy import text as sql_text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.pool import NullPool
 from sqlalchemy.sql import func
 from datetime import datetime, timedelta
 from config import Config
@@ -138,6 +137,15 @@ class DatabaseManager:
             self.backend = 'mysql'
             logger.info("Using MySQL database backend")
         else:
+            engine_kwargs.update(
+                connect_args={"check_same_thread": False},
+                # SQLite opens a new file handle per process by default and
+                # does not benefit from long-lived pooled connections. NullPool
+                # closes each connection as soon as it is returned, which keeps
+                # the bot leak-free and avoids "unclosed database" warnings at
+                # interpreter shutdown.
+                poolclass=NullPool,
+            )
             logger.info("Using SQLite database backend")
 
         self.engine = create_engine(self.database_url, **engine_kwargs)
@@ -178,7 +186,7 @@ class DatabaseManager:
         try:
             session = self.get_session()
             try:
-                session.execute(sql_text("SELECT 1"))
+                session.connection()
                 return True
             finally:
                 session.close()

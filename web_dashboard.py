@@ -6,7 +6,7 @@ Run this separately from the main bot for monitoring purposes.
 
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Flask, render_template_string, jsonify
 from database import db
 import logging

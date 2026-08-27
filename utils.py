@@ -1,8 +1,7 @@
 import re
 import functools
-from typing import Optional, Union
+from typing import Optional
 from telegram import Update, User
-from telegram.constants import ChatMemberStatus
 from telegram.ext import ContextTypes
 
 # ---------------------------------------------------------------------------

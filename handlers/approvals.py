@@ -11,7 +11,7 @@ Also provides an "ignored users" list: users the bot will entirely ignore
 """
 import logging
 
-from sqlalchemy import Column, Integer, String, Boolean, Text, BigInteger, DateTime
+from sqlalchemy import Column, Integer, Text, BigInteger, DateTime
 from sqlalchemy.sql import func
 
 from telegram import Update

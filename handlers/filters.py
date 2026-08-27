@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 # Add new tables to database for filters
-from sqlalchemy import Column, Integer, String, Boolean, Text, BigInteger, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, BigInteger, DateTime
 from sqlalchemy.sql import func
 from database import Base, db as database_instance
 

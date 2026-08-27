@@ -4,7 +4,7 @@ This guide covers different ways to deploy the Telegram Admin Bot.
 
 ## Prerequisites
 
-- Python 3.8 or higher
+- Python 3.9 or higher
 - A Telegram Bot Token from [@BotFather](https://t.me/botfather)
 - Your Telegram User ID (get from [@userinfobot](https://t.me/userinfobot))
 

@@ -1,9 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from telegram.error import BadRequest
 from database import db
 from utils import is_admin_command, is_group_command, get_user_from_message, format_user_mention
-from config import Config
 import logging
 
 logger = logging.getLogger(__name__)

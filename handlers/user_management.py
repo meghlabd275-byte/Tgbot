@@ -1,6 +1,6 @@
 from telegram import Update, ChatPermissions
 from telegram.ext import ContextTypes
-from telegram.constants import ChatMemberStatus
+
 from telegram.error import BadRequest
 from database import db
 from utils import (

@@ -10,9 +10,8 @@ inside photo/video captions. It also checks edited messages.
 """
 import re
 import logging
-from urllib.parse import urlparse
 
-from sqlalchemy import Column, Integer, String, Boolean, BigInteger, DateTime
+from sqlalchemy import Column, Integer, Boolean, BigInteger, DateTime
 from sqlalchemy.sql import func
 
 from telegram import Update

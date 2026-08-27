@@ -19,7 +19,6 @@ things in sync:
 """
 import logging
 import random
-import string
 
 from sqlalchemy import Column, Integer, String, BigInteger, DateTime
 from sqlalchemy.sql import func

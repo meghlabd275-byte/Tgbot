@@ -1,19 +1,25 @@
-# Requires Python 3.13-compatible release: PTB 20.7/20.8 and 21.2/21.3
-# crash at Application.Builder().build() on Python 3.13 due to a __slots__
-# mismatch (AttributeError: 'Updater' object has no attribute
-# '_Updater__polling_cleanup_cb'). The regression was fixed in 21.4.
+# python-telegram-bot 20.x and 21.2/21.3 crash at
+# Application.Builder().build() on Python 3.13 due to a __slots__ mismatch
+# (AttributeError: 'Updater' object has no attribute
+# '_Updater__polling_cleanup_cb'). The regression was fixed in 21.4; we pin
+# to >=21.4 and <22 to stay on the stable v21 API line.
 python-telegram-bot>=21.4,<22
-sqlalchemy>=2.0.23
-aiosqlite==0.19.0
-python-dotenv==1.0.0
-pytz==2023.3.post1
-flask==3.0.0
-requests==2.31.0
-urllib3>=2.1.0
-# psycopg3 is the modern Postgres driver (with prebuilt wheels) used by
-# SQLAlchemy for PostgreSQL database connections.
+# SQLAlchemy 2.x (ORM + Core). We use the modern `sqlalchemy.orm.declarative_base`.
+sqlalchemy>=2.0
+# Loads .env into the environment at startup (config.py). Kept unpinned upper
+# bound so security updates flow through.
+python-dotenv>=1.0
+# Optional web dashboard (web_dashboard.py).
+flask>=3.0
+# ---------------------------------------------------------------------------
+# Optional database backends. SQLite ships with Python's stdlib; install the
+# matching driver for the DATABASE_URL you choose:
+#   PostgreSQL: psycopg[binary] (psycopg3, prebuilt wheels)
+#   MySQL:      PyMySQL + cryptography (SHA-256 auth for MySQL 8+)
+# These are declared so a single `pip install -r requirements.txt` works for
+# any backend, but they are only imported when the matching DATABASE_URL is
+# configured.
+# ---------------------------------------------------------------------------
 psycopg[binary]>=3.1,<4
-# PyMySQL is the pure-Python MySQL/MariaDB driver used by SQLAlchemy.
 PyMySQL>=1.1,<2
-# cryptography enables SHA-256 password auth for MySQL 8+.
 cryptography>=41

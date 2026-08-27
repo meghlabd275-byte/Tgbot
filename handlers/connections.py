@@ -18,7 +18,6 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from database import db
 from utils import is_telegram_admin
 
 logger = logging.getLogger(__name__)

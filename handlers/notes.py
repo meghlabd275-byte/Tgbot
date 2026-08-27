@@ -7,7 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Add new table for notes system
-from sqlalchemy import Column, Integer, String, Boolean, Text, BigInteger, DateTime
+from sqlalchemy import Column, Integer, String, Text, BigInteger, DateTime
 from sqlalchemy.sql import func
 from database import Base
 

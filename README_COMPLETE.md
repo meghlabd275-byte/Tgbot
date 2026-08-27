@@ -2,7 +2,7 @@
 
 **The most comprehensive Telegram admin bot with ALL features from popular bots + unique exclusive features!**
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![Telegram Bot API](https://img.shields.io/badge/Telegram%20Bot%20API-Latest-blue.svg)](https://core.telegram.org/bots/api)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Features](https://img.shields.io/badge/Features-100+-brightgreen.svg)](#features)
@@ -288,7 +288,7 @@ python web_dashboard.py
 ## 📦 Installation & Setup
 
 ### Prerequisites
-- Python 3.8 or higher
+- Python 3.9 or higher
 - A Telegram Bot Token from [@BotFather](https://t.me/botfather)
 - Your Telegram User ID (get from [@userinfobot](https://t.me/userinfobot))
 
