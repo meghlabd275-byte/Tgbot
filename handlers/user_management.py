@@ -528,7 +528,6 @@ async def smute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             until_date = datetime.now() + timedelta(seconds=duration)
             
-            chat = await context.bot.get_chat(chat_id)
             await context.bot.restrict_chat_member(
                 chat_id=chat_id,
                 user_id=user_id,

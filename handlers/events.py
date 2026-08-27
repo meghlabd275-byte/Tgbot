@@ -57,8 +57,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error(f"Failed to delete message in silenced chat: {e}")
             return
 
-        # Check for spam/flood (basic implementation)
-        # This could be expanded with more sophisticated anti-spam measures
+        # Note: flood / slow-mode / night-mode / filter protection is enforced
+        # earlier in the pipeline by bot.handle_all_messages (check_flood,
+        # check_slow_mode, check_night_mode, check_message_filters) before this
+        # regular-message handler runs.
 
     finally:
         session.close()
