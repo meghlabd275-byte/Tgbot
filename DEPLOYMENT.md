@@ -15,7 +15,7 @@ This guide covers different ways to deploy the Telegram Admin Bot.
 ```bash
 # Clone the repository
 git clone https://github.com/meghlabd275-byte/Tgbot.git
-cd Telegram-Bot-
+cd Tgbot
 
 # Install dependencies
 pip install -r requirements.txt
@@ -66,7 +66,7 @@ After=network.target
 [Service]
 Type=simple
 User=your_username
-WorkingDirectory=/path/to/Telegram-Bot-
+WorkingDirectory=/path/to/Tgbot
 Environment=PATH=/path/to/your/python/env/bin
 ExecStart=/path/to/your/python/env/bin/python bot.py
 Restart=always
@@ -88,7 +88,7 @@ sudo systemctl status telegram-bot
 
 1. **Create Dockerfile**:
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
@@ -298,7 +298,7 @@ python test_bot.py
 ### Updating the Bot
 ```bash
 # Backup current version
-cp -r Telegram-Bot- Telegram-Bot-backup
+cp -r Tgbot Tgbot-backup
 
 # Pull updates
 git pull origin main

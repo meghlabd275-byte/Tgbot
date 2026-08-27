@@ -252,6 +252,23 @@ class DatabaseManager:
             return session.query(Admin).filter(Admin.chat_id == chat_id).all()
         finally:
             session.close()
+
+    def set_chat_active(self, chat_id: int, active: bool = True):
+        """Mark a chat as active (or inactive).
+
+        The `chats.is_active` flag is what powers the web dashboard's
+        "Active Chats" statistic and the "Active/Inactive" badge. It is set to
+        `True` when an admin runs `/activate`, so the flag reflects reality
+        instead of staying `False` forever.
+        """
+        session = self.get_session()
+        try:
+            chat = session.query(Chat).filter(Chat.id == chat_id).first()
+            if chat:
+                chat.is_active = active
+                session.commit()
+        finally:
+            session.close()
     
     def add_admin(self, user_id: int, chat_id: int, title: str = None):
         session = self.get_session()

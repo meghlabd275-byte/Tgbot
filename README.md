@@ -51,7 +51,7 @@ A comprehensive Telegram bot for advanced group management and moderation with e
 1. **Clone the repository**:
    ```bash
    git clone https://github.com/meghlabd275-byte/Tgbot.git
-   cd Telegram-Bot-
+   cd Tgbot
    ```
 
 2. **Install dependencies**:

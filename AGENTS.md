@@ -150,5 +150,5 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
   `handle_service_message` (early return when `db.is_chat_disabled`).
 - Tests: `test_functional.py` covers service-control registration, decorator
   access control, DB round-trip, DisabledChat queryability, and the message gate.
-- 49 tests total (`pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py`).
+- 58 tests total (`pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py`).
 

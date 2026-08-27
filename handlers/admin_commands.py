@@ -46,6 +46,10 @@ async def activate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.get_or_create_user(user.id, user.username, user.first_name, user.last_name)
     await sync_telegram_admins(context, chat.id)
 
+    # Mark the chat as active so the web dashboard's "Active Chats" statistic
+    # and the Active/Inactive badge reflect that this group has been set up.
+    db.set_chat_active(chat.id, True)
+
     admin_count = len(db.get_chat_admins(chat.id))
 
     await update.message.reply_text(

@@ -23,7 +23,7 @@
 ```bash
 # 1. Clone the repository
 git clone https://github.com/meghlabd275-byte/Tgbot.git
-cd Telegram-Bot-
+cd Tgbot
 
 # 2. Install dependencies
 pip install -r requirements.txt
@@ -297,7 +297,7 @@ python web_dashboard.py
 1. **Clone the Repository**
    ```bash
    git clone https://github.com/meghlabd275-byte/Tgbot.git
-   cd Telegram-Bot-
+   cd Tgbot
    ```
 
 2. **Install Dependencies**
@@ -415,7 +415,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Issues**: [GitHub Issues](https://github.com/meghlabd275-byte/Tgbot/issues)
 - **Documentation**: [Complete Docs](README.md)
-- **Examples**: Check the `examples/` directory
+- **Examples**: See the usage examples throughout [README.md](README.md) and [API_REFERENCE.md](API_REFERENCE.md)
 
 ## 🌟 Star History
 

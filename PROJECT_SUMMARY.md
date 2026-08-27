@@ -93,7 +93,7 @@ A comprehensive Telegram bot for advanced group management and moderation, built
 ```bash
 # 1. Clone and setup
 git clone https://github.com/meghlabd275-byte/Tgbot.git
-cd Telegram-Bot-
+cd Tgbot
 pip install -r requirements.txt
 
 # 2. Configure

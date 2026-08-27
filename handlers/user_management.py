@@ -55,13 +55,30 @@ async def title_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Please specify a user (reply to message, @username, or user ID).")
         return
     
-    if not context.args or len(context.args) < 2:
-        await update.message.reply_text("❌ Please provide a title. Usage: /title @user Title Here")
+    if not update.message.reply_to_message and (not context.args or len(context.args) < 2):
+        await update.message.reply_text(
+            "❌ Please provide a title.\n"
+            "Usage:\n"
+            "• `/title @user Title Here`\n"
+            "• `/title 123456789 Title Here`\n"
+            "• Reply to the target with `/title Title Here`"
+        )
         return
     
     user_id, user_obj = user_info
-    title = ' '.join(context.args[1:]) if context.args[0].startswith('@') or context.args[0].isdigit() else ' '.join(context.args)
     chat_id = update.effective_chat.id
+    
+    if update.message.reply_to_message:
+        # Target came from the replied-to message, so ALL args are the title.
+        title = ' '.join(context.args)
+    elif context.args[0].startswith('@') or context.args[0].isdigit():
+        title = ' '.join(context.args[1:])
+    else:
+        title = ' '.join(context.args)
+    
+    if not title:
+        await update.message.reply_text("❌ Please provide a title. Usage: /title @user Title Here")
+        return
     
     if user_id:
         try:
