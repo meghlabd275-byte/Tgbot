@@ -156,32 +156,6 @@ def message_has_link(message) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Settings helpers
-# ---------------------------------------------------------------------------
-
-def get_settings(chat_id: int):
-    session = db.get_session()
-    try:
-        s = session.query(URLRemoverSettings).filter(URLRemoverSettings.chat_id == chat_id).first()
-        return s, session
-    except Exception:
-        session.close()
-        return None, session
-
-
-def is_url_removal_active(chat_id: int) -> bool:
-    """Quick check whether any URL-removal mode is active for this chat."""
-    session = db.get_session()
-    try:
-        s = session.query(URLRemoverSettings).filter(URLRemoverSettings.chat_id == chat_id).first()
-        if not s:
-            return False
-        return bool(s.remove_urls or s.remove_invites or s.remove_all_links)
-    finally:
-        session.close()
-
-
-# ---------------------------------------------------------------------------
 # Core filter check (called from check_message_filters / edited message handler)
 # ---------------------------------------------------------------------------
 

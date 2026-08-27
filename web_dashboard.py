@@ -288,15 +288,17 @@ def api_stats():
 def health_check():
     """Health check endpoint"""
     try:
-        session = db.get_session()
-        session.execute("SELECT 1")
-        session.close()
-        
+        if db.ping():
+            return jsonify({
+                'status': 'healthy',
+                'timestamp': datetime.now().isoformat(),
+                'database': 'connected'
+            })
         return jsonify({
-            'status': 'healthy',
+            'status': 'unhealthy',
             'timestamp': datetime.now().isoformat(),
-            'database': 'connected'
-        })
+            'database': 'disconnected'
+        }), 500
         
     except Exception as e:
         return jsonify({
