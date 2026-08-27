@@ -89,28 +89,22 @@ class Whitelist(Base):
 
 class DatabaseManager:
     def __init__(self, database_url: str = None):
-        # Resolve the effective database URL (Supabase Postgres or fallback SQLite)
-        database_url = database_url or Config.get_database_url()
-        self.database_url = database_url
-        self.is_supabase = Config.is_supabase_enabled()
+        self.database_url = database_url or Config.DATABASE_URL
 
         engine_kwargs = {}
 
-        if self.is_supabase or database_url.startswith('postgresql'):
-            # Production Postgres / Supabase: use a connection pool tuned for
-            # managed databases that close idle connections after a few minutes.
+        if self.database_url.startswith('postgresql'):
+            # Production Postgres: use a connection pool tuned for managed
+            # databases that close idle connections after a few minutes.
             engine_kwargs.update(
-                pool_size=Config.DB_POOL_SIZE,
-                max_overflow=Config.DB_MAX_OVERFLOW,
-                pool_recycle=Config.DB_POOL_RECYCLE,   # recycle before Supabase drops idle conns
-                pool_pre_ping=True,                     # verify connections are alive before use
+                pool_pre_ping=True,     # verify connections are alive before use
                 pool_timeout=30,
             )
-            logger.info("Using PostgreSQL/Supabase database backend")
+            logger.info("Using PostgreSQL database backend")
         else:
             logger.info("Using SQLite database backend")
 
-        self.engine = create_engine(database_url, **engine_kwargs)
+        self.engine = create_engine(self.database_url, **engine_kwargs)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         Base.metadata.create_all(bind=self.engine)
 
@@ -406,5 +400,5 @@ class DatabaseManager:
         finally:
             session.close()
 
-# Global database instance (Supabase Postgres when configured, else SQLite fallback)
+# Global database instance (uses DATABASE_URL; SQLite by default)
 db = DatabaseManager()

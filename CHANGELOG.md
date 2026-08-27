@@ -66,10 +66,7 @@ All notable changes to the Telegram Admin Bot will be documented in this file.
 ## [1.1.0] - 2025-06-15
 
 ### Added
-- Supabase managed PostgreSQL backend (see `SUPABASE_SETUP.md`)
-  - `config.py` resolves DB URL with priority: `SUPABASE_DB_URL` > Supabase components > `DATABASE_URL`
-  - `supabase_client.py` REST wrapper, degrades gracefully without credentials
-  - Falls back to local SQLite when Supabase is not configured
+- PostgreSQL backend support via `DATABASE_URL` (falls back to local SQLite)
 
 ## [1.0.0] - 2025-06-15
 

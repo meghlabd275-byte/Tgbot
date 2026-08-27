@@ -8,9 +8,8 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
 - Python 3.13.14
 - Install: `pip install -r requirements.txt`
 - Run: `python bot.py` (requires BOT_TOKEN, BOT_USERNAME, SUPER_ADMIN_ID env vars / .env)
-- DB: SQLite (`bot.db`) by default, OR Supabase managed PostgreSQL when
-  `SUPABASE_URL` + `SUPABASE_DB_URL` (or component fields) are set.
-  See `SUPABASE_SETUP.md`. 21 tables auto-created on import.
+- DB: SQLite (`bot.db`) by default, or PostgreSQL when `DATABASE_URL` is set
+  to a PostgreSQL URL. 21 tables auto-created on import.
 
 ## Tests (all must pass)
 - `python test_bot.py` — 4 basic tests
@@ -70,8 +69,10 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
 - The provided GITHUB_TOKEN has admin access to this repo but CANNOT create new
   repos (no OAuth scopes / createRepository mutation blocked).
 
-## Supabase integration (branch: feature/supabase-backend)
-- `config.py`: `Config.get_database_url()` resolves Supabase Postgres URL with priority (SUPABASE_DB_URL > components > DATABASE_URL). `is_supabase_enabled()` toggles. Bare `postgresql://` and `postgresql+psycopg2://` URLs are normalized to the psycopg3 driver (`postgresql+psycopg://`).
-- `database.py`: `DatabaseManager()` (no-arg now) auto-resolves the URL; for Postgres it sets `pool_pre_ping=True`, `pool_recycle=1800`, pool tuning from Config to survive Supabase dropping idle connections.
-- `supabase_client.py`: optional thin REST API wrapper (PostgREST/Storage/Auth) for the web dashboard. Degrades gracefully if `supabase` package is missing or no credentials set. The `supabase` package is NOT in requirements.txt (conflicts with PTB httpx pin); install separately only if needed.
-- Driver: `psycopg[binary]` (psycopg3) - has wheels for Python 3.13, unlike psycopg2-binary which fails to build.
+## Database backend
+- `config.py`: reads `DATABASE_URL` (defaults to `sqlite:///bot.db`).
+- `database.py`: `DatabaseManager()` (no-arg) resolves the URL from
+  `Config.DATABASE_URL`; for Postgres it sets `pool_pre_ping=True` and a short
+  `pool_timeout` to survive managed databases dropping idle connections.
+- Driver: `psycopg[binary]` (psycopg3) - has wheels for Python 3.13, unlike
+  psycopg2-binary which fails to build.

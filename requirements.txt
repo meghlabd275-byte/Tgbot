@@ -6,12 +6,6 @@ pytz==2023.3.post1
 flask==3.0.0
 requests==2.31.0
 urllib3>=2.1.0
-# Supabase backend (managed PostgreSQL) support.
-# psycopg3 is the modern Postgres driver with prebuilt wheels for all Python
-# versions; used by SQLAlchemy for the direct database connection.
+# psycopg3 is the modern Postgres driver (with prebuilt wheels) used by
+# SQLAlchemy for PostgreSQL database connections.
 psycopg[binary]>=3.1,<4
-# The `supabase` REST client is OPTIONAL (only for supabase_client.py helpers
-# like the web dashboard / storage). It is NOT required for the bot to use
-# Supabase as its database. Install separately if needed:
-#   pip install supabase
-# (Not pinned here because it conflicts with python-telegram-bot's httpx pin.)
