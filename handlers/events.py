@@ -7,53 +7,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle new members joining the chat"""
-    chat_id = update.effective_chat.id
-    
-    # Check if chat is under attack
-    session = db.get_session()
-    try:
-        chat = session.query(db.Chat).filter(db.Chat.id == chat_id).first()
-        if chat and chat.under_attack:
-            # Kick all new members when under attack
-            for member in update.message.new_chat_members:
-                try:
-                    await context.bot.ban_chat_member(chat_id, member.id)
-                    await context.bot.unban_chat_member(chat_id, member.id)
-                    logger.info(f"Kicked new member {member.id} due to under attack mode in chat {chat_id}")
-                except Exception as e:
-                    logger.error(f"Failed to kick new member {member.id}: {e}")
-            
-            # Delete the join message
-            try:
-                await context.bot.delete_message(chat_id, update.message.message_id)
-            except:
-                pass
-            return
-        
-        # Check for global bans
-        for member in update.message.new_chat_members:
-            if db.is_banned(member.id):
-                try:
-                    await context.bot.ban_chat_member(chat_id, member.id)
-                    logger.info(f"Banned new member {member.id} due to global ban in chat {chat_id}")
-                except Exception as e:
-                    logger.error(f"Failed to ban globally banned member {member.id}: {e}")
-            else:
-                # Register new user
-                db.get_or_create_user(member.id, member.username, member.first_name, member.last_name)
-    
-    finally:
-        session.close()
-
-async def handle_left_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle members leaving the chat"""
-    # Update user last active time
-    left_member = update.message.left_chat_member
-    if left_member:
-        db.get_or_create_user(left_member.id, left_member.username, left_member.first_name, left_member.last_name)
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular messages for various checks"""
     if not update.message or not update.effective_user:

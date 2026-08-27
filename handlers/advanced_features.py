@@ -630,8 +630,8 @@ async def check_night_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
     
-    # Skip admins
-    if db.is_admin(user_id, chat_id):
+    # Skip admins, whitelisted, and approved users
+    if db.is_admin(user_id, chat_id) or db.is_whitelisted(user_id, chat_id) or db.is_approved(user_id, chat_id):
         return False
     
     session = db.get_session()
@@ -696,7 +696,7 @@ async def check_slow_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
 
-    if db.is_admin(user_id, chat_id) or db.is_whitelisted(user_id, chat_id):
+    if db.is_admin(user_id, chat_id) or db.is_whitelisted(user_id, chat_id) or db.is_approved(user_id, chat_id):
         return False
 
     session = db.get_session()

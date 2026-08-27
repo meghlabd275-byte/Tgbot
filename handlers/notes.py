@@ -42,10 +42,10 @@ def update_notes_database():
 @is_group_command
 async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Save a note"""
-    if len(context.args) < 2:
+    if not context.args:
         await update.message.reply_text(
             "❌ Usage: `/save <notename> <content>`\n"
-            "You can also reply to a message with `/save <notename>` to save that message as a note.",
+            "Reply to a message with `/save <notename>` to save that message as a media note.",
             parse_mode='Markdown'
         )
         return
@@ -89,7 +89,17 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif replied_msg.animation:
             file_id = replied_msg.animation.file_id
             file_type = 'animation'
+        elif replied_msg.audio:
+            file_id = replied_msg.audio.file_id
+            file_type = 'audio'
     else:
+        if len(context.args) < 2:
+            await update.message.reply_text(
+                "❌ Usage: `/save <notename> <content>`\n"
+                "Or reply to a message with `/save <notename>`.",
+                parse_mode='Markdown'
+            )
+            return
         # Save text content
         content = ' '.join(context.args[1:])
         file_id = None
@@ -181,18 +191,22 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if note.content:
                     await context.bot.send_message(chat_id, note.content, parse_mode='Markdown')
             elif note.file_type == 'voice':
-                await context.bot.send_voice(
-                    chat_id,
-                    note.file_id,
-                    caption=note.content,
-                    parse_mode='Markdown'
-                )
+                await context.bot.send_voice(chat_id, note.file_id)
+                if note.content:
+                    await context.bot.send_message(chat_id, note.content, parse_mode='Markdown')
             elif note.file_type == 'video_note':
                 await context.bot.send_video_note(chat_id, note.file_id)
                 if note.content:
                     await context.bot.send_message(chat_id, note.content, parse_mode='Markdown')
             elif note.file_type == 'animation':
                 await context.bot.send_animation(
+                    chat_id,
+                    note.file_id,
+                    caption=note.content,
+                    parse_mode='Markdown'
+                )
+            elif note.file_type == 'audio':
+                await context.bot.send_audio(
                     chat_id,
                     note.file_id,
                     caption=note.content,
@@ -386,7 +400,26 @@ async def handle_note_shortcut(update: Update, context: ContextTypes.DEFAULT_TYP
                         await context.bot.send_sticker(chat_id, note.file_id)
                         if note.content:
                             await context.bot.send_message(chat_id, note.content, parse_mode='Markdown')
-                    # Add other media types as needed
+                    elif note.file_type == 'voice':
+                        await context.bot.send_voice(chat_id, note.file_id, caption=note.content)
+                    elif note.file_type == 'video_note':
+                        await context.bot.send_video_note(chat_id, note.file_id)
+                        if note.content:
+                            await context.bot.send_message(chat_id, note.content, parse_mode='Markdown')
+                    elif note.file_type == 'animation':
+                        await context.bot.send_animation(
+                            chat_id,
+                            note.file_id,
+                            caption=note.content,
+                            parse_mode='Markdown'
+                        )
+                    elif note.file_type == 'audio':
+                        await context.bot.send_audio(
+                            chat_id,
+                            note.file_id,
+                            caption=note.content,
+                            parse_mode='Markdown'
+                        )
                 else:
                     await context.bot.send_message(chat_id, note.content, parse_mode='Markdown')
                 

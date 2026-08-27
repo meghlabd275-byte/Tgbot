@@ -99,8 +99,3 @@ async def disabledgroups_command(update: Update, context: ContextTypes.DEFAULT_T
     for row in rows[:50]:
         lines.append(f"• `{row.chat_id}` — by `{row.disabled_by}` at {row.created_at}")
     await update.message.reply_text('\n'.join(lines), parse_mode='Markdown')
-
-
-def chat_disabled(chat_id: int) -> bool:
-    """Synchronous shortcut so event handlers can short-circuit without a session."""
-    return db.is_chat_disabled(chat_id)

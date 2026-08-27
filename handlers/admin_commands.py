@@ -259,10 +259,14 @@ async def pin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         message_to_pin = update.message.reply_to_message
+        # `/pin` -> notify; `/pin silent` / `/pin quiet` -> pin without notification.
+        arg = (context.args[0].lower() if context.args else '')
+        disable_notification = arg in ('silent', 'quiet', 'loudless')
+
         await context.bot.pin_chat_message(
             chat_id=update.effective_chat.id,
             message_id=message_to_pin.message_id,
-            disable_notification=False
+            disable_notification=disable_notification
         )
         
         # Save pinned message ID to database
@@ -330,11 +334,22 @@ async def purge_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if context.args and context.args[0].isdigit():
             # Purge specified number of messages
-            amount = min(int(context.args[0]), Config.PURGE_LIMIT)
-            messages_to_delete = []
-            
-            for i in range(1, amount + 1):
-                messages_to_delete.append(current_message_id - i)
+            value = int(context.args[0])
+            # A number larger than the purge limit is treated as a starting
+            # message ID (delete from that ID up to the current message);
+            # otherwise it is the number of messages to delete.
+            if value > Config.PURGE_LIMIT:
+                messages_to_delete = list(range(value, current_message_id))
+                if len(messages_to_delete) > Config.PURGE_LIMIT:
+                    await update.message.reply_text(
+                        f"❌ Too many messages to delete (max {Config.PURGE_LIMIT}). "
+                        f"Found {len(messages_to_delete)} messages."
+                    )
+                    return
+            else:
+                messages_to_delete = []
+                for i in range(1, value + 1):
+                    messages_to_delete.append(current_message_id - i)
             
         elif update.message.reply_to_message:
             # Purge from replied message to current

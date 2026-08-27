@@ -5,7 +5,6 @@ A comprehensive bot for managing Telegram groups with advanced moderation featur
 """
 
 import logging
-import asyncio
 from telegram import Update
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, ChatMemberHandler,
@@ -56,14 +55,14 @@ from handlers.help_commands import (
 )
 
 from handlers.events import (
-    handle_new_member, handle_left_member, handle_message,
+    handle_message,
     handle_chat_member_update, handle_bot_added_to_chat, error_handler
 )
 
 # Import new advanced handlers
 from handlers.antiflood import (
     setflood_command, setfloodmode_command, flood_command, check_flood,
-    antiraid_command, check_raid
+    antiraid_command
 )
 
 from handlers.filters import (
@@ -81,7 +80,7 @@ from handlers.welcome import (
 )
 
 from handlers.url_remover import (
-    removeurls_command, check_url_remover
+    removeurls_command
 )
 
 from handlers.notes import (
@@ -105,12 +104,12 @@ from handlers.federations import (
     fedadmins_command, fedpromote_command, feddemote_command,
     fedjoin_command, fedleave_command, fedchat_command,
     fedban_command, fedunban_command, fedkick_command, fedmute_command,
-    fedbans_command, enforce_federation_bans
+    fedbans_command
 )
 
 from handlers.connections import (
     connect_command, handle_connect_callback, disconnect_command,
-    connection_command, reconnect_command, get_effective_chat_id
+    connection_command, reconnect_command
 )
 
 from handlers.approvals import (

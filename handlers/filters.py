@@ -59,6 +59,26 @@ class URLAllowlist(Base):
 def update_database():
     Base.metadata.create_all(bind=database_instance.engine)
 
+
+# Emoji Unicode ranges (emoticons, pictographs, symbols, and »flags»).
+_EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F000-\U0001FAFF"  # emoticons, misc symbols, pictographs, transport
+    "\U00002600-\U000027BF"  # misc symbols, dingbats
+    "\U0001F1E6-\U0001F1FF"  # regional indicator symbols (flags)
+    "\U0000FE00-\U0000FE0F"  # variation selectors
+    "\U00002190-\U000021FF"  # arrows
+    "\U00002B00-\U00002BFF"  # misc symbols and arrows
+    "]+"
+)
+
+
+def _contains_emoji(text: str) -> bool:
+    """Return True if the text contains at least one emoji character."""
+    if not text:
+        return False
+    return bool(_EMOJI_PATTERN.search(text))
+
 # All lockable message types (mirrors Rose's /locktypes)
 LOCK_TYPES = [
     'url', 'invite', 'forward', 'photo', 'video', 'audio', 'voice',
@@ -574,7 +594,7 @@ async def check_media_filters(update: Update, context: ContextTypes.DEFAULT_TYPE
         media_type = 'document'
     elif message.sticker:
         media_type = 'sticker'
-    if message.animation:
+    elif message.animation:
         media_type = 'animation'  # animation (GIF) maps to both 'gif' and 'animation'
     elif message.voice:
         media_type = 'voice'
@@ -588,6 +608,8 @@ async def check_media_filters(update: Update, context: ContextTypes.DEFAULT_TYPE
         media_type = 'location'
     elif message.poll:
         media_type = 'poll'
+    elif message.game:
+        media_type = 'game'
     elif message.forward_from or message.forward_from_chat:
         media_type = 'forward'
     elif message.reply_to_message:
@@ -620,13 +642,33 @@ async def check_media_filters(update: Update, context: ContextTypes.DEFAULT_TYPE
                 await apply_filter_action(update, context, 'delete', "Locked media type: invite")
                 return True
 
+            # 'emoji' lock: delete messages containing emoji characters
+            if _locked(session, 'emoji') and _contains_emoji(text_for_url):
+                await apply_filter_action(update, context, 'delete', "Locked media type: emoji")
+                return True
+
+            # 'text' lock: delete plain text messages (no media attached)
+            if _locked(session, 'text') and message.text and not any([
+                message.photo, message.video, message.document, message.sticker,
+                message.animation, message.voice, message.video_note, message.audio,
+                message.contact, message.location, message.poll, message.game,
+                message.forward_from, message.forward_from_chat, message.reply_to_message,
+            ]):
+                await apply_filter_action(update, context, 'delete', "Locked media type: text")
+                return True
+
+        # 'game' lock: delete game messages (game has no separate text check above)
+        if media_type == 'game' and _locked(session, 'game'):
+            await apply_filter_action(update, context, 'delete', "Locked media type: game")
+            return True
+
         if media_type == 'animation':
             # gif and animation are semantically identical here
             for t in ('animation', 'gif'):
                 if _locked(session, t):
                     await apply_filter_action(update, context, 'delete', f"Locked media type: {t}")
                     return True
-        elif media_type and _locked(session, media_type):
+        elif media_type and media_type not in ('game',) and _locked(session, media_type):
             await apply_filter_action(update, context, 'delete', f"Locked media type: {media_type}")
             return True
 
