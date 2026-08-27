@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, BigInteger
+from sqlalchemy import text as sql_text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import func
@@ -19,6 +20,12 @@ class Chat(Base):
     is_silenced = Column(Boolean, default=False)
     under_attack = Column(Boolean, default=False)
     pinned_message_id = Column(Integer)
+    # How warnings issued in this chat behave:
+    #   kick   - kick the user when warning limit is reached
+    #   ban    - ban the user when warning limit is reached (default)
+    #   mute   - mute the user when warning limit is reached
+    #   tban   - temporarily ban (24h) when warning limit is reached
+    warn_mode = Column(String(10), default='ban')
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -91,22 +98,34 @@ class DatabaseManager:
     def __init__(self, database_url: str = None):
         self.database_url = database_url or Config.DATABASE_URL
 
+        url_lower = (self.database_url or '').lower()
+        self.backend = 'sqlite'
         engine_kwargs = {}
 
-        if self.database_url.startswith('postgresql'):
+        if url_lower.startswith('postgresql'):
             # Production Postgres: use a connection pool tuned for managed
             # databases that close idle connections after a few minutes.
             engine_kwargs.update(
                 pool_pre_ping=True,     # verify connections are alive before use
                 pool_timeout=30,
             )
+            self.backend = 'postgresql'
             logger.info("Using PostgreSQL database backend")
+        elif url_lower.startswith('mysql'):
+            # MySQL/MariaDB: pool tuning for long-lived bot processes.
+            engine_kwargs.update(
+                pool_pre_ping=True,
+                pool_recycle=3600,
+                pool_timeout=30,
+            )
+            self.backend = 'mysql'
+            logger.info("Using MySQL database backend")
         else:
             logger.info("Using SQLite database backend")
 
         self.engine = create_engine(self.database_url, **engine_kwargs)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        Base.metadata.create_all(bind=self.engine)
+        self._create_all()
 
         # Expose model classes so handlers can do `session.query(db.Chat)` etc.
         self.Chat = Chat
@@ -118,9 +137,37 @@ class DatabaseManager:
         self.Whitelist = Whitelist
         self.Base = Base
 
+    def _create_all(self):
+        """Create all tables known to this module's Base."""
+        Base.metadata.create_all(bind=self.engine)
+
+    def ensure_tables(self, *bases):
+        """Create tables declared on any metadata object (e.g. handler modules).
+
+        Handler modules declare their own models on `database.Base` (same
+        metadata) but we also accept extra `Base` objects for robustness with
+        future refactors.
+        """
+        for base in bases:
+            if base.metadata is not Base.metadata:
+                base.metadata.create_all(bind=self.engine)
+
     def get_session(self):
         return self.SessionLocal()
-    
+
+    def ping(self):
+        """Return True if the database connection is usable."""
+        try:
+            session = self.get_session()
+            try:
+                session.execute(sql_text("SELECT 1"))
+                return True
+            finally:
+                session.close()
+        except Exception as e:
+            logger.error(f"Database ping failed: {e}")
+            return False
+
     def get_or_create_chat(self, chat_id: int, title: str = None):
         session = self.get_session()
         try:
@@ -158,14 +205,33 @@ class DatabaseManager:
     def is_admin(self, user_id: int, chat_id: int = None):
         session = self.get_session()
         try:
-            if user_id == Config.SUPER_ADMIN_ID:
+            if user_id in Config.super_admin_ids():
                 return True
-            
+
             query = session.query(Admin).filter(Admin.user_id == user_id)
             if chat_id:
                 query = query.filter(Admin.chat_id == chat_id)
-            
+
             return query.first() is not None
+        finally:
+            session.close()
+
+    def is_chat_admin(self, user_id: int, chat_id: int) -> bool:
+        """True if user is a registered admin for the specific chat (not super admin)."""
+        session = self.get_session()
+        try:
+            return session.query(Admin).filter(
+                Admin.user_id == user_id,
+                Admin.chat_id == chat_id
+            ).first() is not None
+        finally:
+            session.close()
+
+    def get_chat_admins(self, chat_id: int):
+        """Return all registered admin rows for a chat."""
+        session = self.get_session()
+        try:
+            return session.query(Admin).filter(Admin.chat_id == chat_id).all()
         finally:
             session.close()
     
@@ -199,6 +265,45 @@ class DatabaseManager:
                 session.commit()
                 return True
             return False
+        finally:
+            session.close()
+
+    def get_warn_settings(self, chat_id: int) -> dict:
+        """Return warning settings for a chat: (limit, mode)."""
+        session = self.get_session()
+        try:
+            chat = session.query(Chat).filter(Chat.id == chat_id).first()
+            if not chat:
+                return {'limit': Config.MAX_WARNINGS, 'mode': 'ban'}
+            return {'limit': Config.MAX_WARNINGS, 'mode': chat.warn_mode or 'ban'}
+        finally:
+            session.close()
+
+    def set_warn_mode(self, chat_id: int, mode: str):
+        session = self.get_session()
+        try:
+            chat = session.query(Chat).filter(Chat.id == chat_id).first()
+            if not chat:
+                chat = Chat(id=chat_id, warn_mode=mode)
+                session.add(chat)
+            else:
+                chat.warn_mode = mode
+            session.commit()
+        finally:
+            session.close()
+
+    def is_approved(self, user_id: int, chat_id: int) -> bool:
+        """True if the user is approved (immune to automated actions) in this chat."""
+        try:
+            from handlers.approvals import Approved
+        except Exception:
+            return False
+        session = self.get_session()
+        try:
+            return session.query(Approved).filter(
+                Approved.chat_id == chat_id,
+                Approved.user_id == user_id
+            ).first() is not None
         finally:
             session.close()
     

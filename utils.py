@@ -2,7 +2,83 @@ import re
 import functools
 from typing import Optional, Union
 from telegram import Update, User
+from telegram.constants import ChatMemberStatus
 from telegram.ext import ContextTypes
+
+# ---------------------------------------------------------------------------
+# Time parsing (supports natural language like "30s", "5m", "2h", "1d")
+# ---------------------------------------------------------------------------
+
+_TIME_MULTIPLIERS = {
+    's': 1,
+    'sec': 1,
+    'secs': 1,
+    'second': 1,
+    'seconds': 1,
+    'm': 60,
+    'min': 60,
+    'mins': 60,
+    'minute': 60,
+    'minutes': 60,
+    'h': 3600,
+    'hr': 3600,
+    'hrs': 3600,
+    'hour': 3600,
+    'hours': 3600,
+    'd': 86400,
+    'day': 86400,
+    'days': 86400,
+    'w': 604800,
+    'week': 604800,
+    'weeks': 604800,
+}
+
+_TIME_PATTERN = re.compile(r'^\s*(\d+)\s*([a-zA-Z]*)\s*$')
+
+
+def parse_time_string(time_str) -> int:
+    """
+    Parse a time string like '1h', '30m', '2 days', '1w' into seconds.
+    Also accepts plain integers (interpreted as minutes). Returns the
+    default (3600s) if parsing fails.
+    """
+    if time_str is None:
+        return 3600
+
+    if isinstance(time_str, int) or (isinstance(time_str, str) and time_str.strip().isdigit()):
+        # Bare number -> minutes (common convention for /mute 5 = 5 minutes)
+        return int(time_str) * 60
+
+    text = str(time_str).lower().strip()
+    match = _TIME_PATTERN.match(text)
+    if not match:
+        return 3600
+
+    number = int(match.group(1))
+    unit = (match.group(2) or 'm').lower()
+    multiplier = _TIME_MULTIPLIERS.get(unit, 60)
+    return number * multiplier
+
+
+def format_time_duration(seconds: int) -> str:
+    """Format seconds into a human readable duration (e.g. '2h 30m')."""
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds}s"
+    parts = []
+    days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if seconds:
+        parts.append(f"{seconds}s")
+    return " ".join(parts)
+
 
 def get_user_from_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Optional[tuple]:
     """
@@ -35,6 +111,8 @@ def get_user_from_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 def format_user_mention(user: User) -> str:
     """Format user mention for display"""
+    if user is None:
+        return "Unknown user"
     if user.username:
         return f"@{user.username}"
     else:
@@ -43,59 +121,29 @@ def format_user_mention(user: User) -> str:
             name += f" {user.last_name}"
         return f"[{name}](tg://user?id={user.id})"
 
-def parse_time_string(time_str: str) -> int:
-    """
-    Parse time string like '1h', '30m', '2d' into seconds.
-    Returns seconds or default 3600 (1 hour) if parsing fails.
-    """
-    if not time_str:
-        return 3600
-    
-    time_str = time_str.lower().strip()
-    
-    # Extract number and unit
-    match = re.match(r'^(\d+)([smhd]?)$', time_str)
-    if not match:
-        return 3600
-    
-    number = int(match.group(1))
-    unit = match.group(2) or 's'
-    
-    multipliers = {
-        's': 1,
-        'm': 60,
-        'h': 3600,
-        'd': 86400
-    }
-    
-    return number * multipliers.get(unit, 1)
-
-def format_time_duration(seconds: int) -> str:
-    """Format seconds into human readable duration"""
-    if seconds < 60:
-        return f"{seconds}s"
-    elif seconds < 3600:
-        return f"{seconds // 60}m"
-    elif seconds < 86400:
-        return f"{seconds // 3600}h"
-    else:
-        return f"{seconds // 86400}d"
-
 def is_admin_command(func):
     """Decorator to check if user is admin before executing command"""
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from database import db
-        
+
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
-        
+
+        # Fall back to Telegram's own admin list when the bot's admin
+        # database is empty (e.g. bot was just added to a new group).
         if not db.is_admin(user_id, chat_id):
-            await update.message.reply_text("❌ You need to be an admin to use this command.")
-            return
-        
+            telegram_admin = await is_telegram_admin(context, chat_id, user_id)
+            if telegram_admin:
+                # Auto-register so future checks hit the local cache.
+                db.get_or_create_chat(chat_id, update.effective_chat.title)
+                db.add_admin(user_id, chat_id)
+            else:
+                await update.message.reply_text("❌ You need to be an admin to use this command.")
+                return
+
         return await func(update, context)
-    
+
     return wrapper
 
 def is_group_command(func):
@@ -110,10 +158,58 @@ def is_group_command(func):
     
     return wrapper
 
+def is_owner_command(func):
+    """Decorator: only the group creator/owner (or a super admin) can run it."""
+    @functools.wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        from config import Config
+        from database import db
+
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+
+        if user_id in Config.super_admin_ids():
+            return await func(update, context)
+
+        try:
+            if await is_telegram_owner(context, chat_id, user_id):
+                return await func(update, context)
+        except Exception:
+            pass
+
+        await update.message.reply_text("❌ Only the group owner can use this command.")
+        return
+
+    return wrapper
+
 def escape_markdown(text: str) -> str:
     """Escape markdown special characters"""
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
+
+async def is_telegram_admin(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int) -> bool:
+    """Ask Telegram directly whether `user_id` is an admin/owner of `chat_id`."""
+    try:
+        member = await context.bot.get_chat_member(chat_id, user_id)
+        return str(member.status) in ('administrator', 'creator')
+    except Exception:
+        return False
+
+async def get_telegram_admins(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+    """Return the list of Telegram admin users for a chat."""
+    try:
+        admins = await context.bot.get_chat_administrators(chat_id)
+        return [a.user for a in admins]
+    except Exception:
+        return None
+
+async def is_telegram_owner(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int) -> bool:
+    """Ask Telegram directly whether `user_id` is the group creator/owner."""
+    try:
+        member = await context.bot.get_chat_member(chat_id, user_id)
+        return str(member.status) == 'creator'
+    except Exception:
+        return False
 
 def get_chat_admins_cache():
     """Simple in-memory cache for chat admins"""
@@ -127,6 +223,24 @@ async def update_chat_admins_cache(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         admins = await context.bot.get_chat_administrators(chat_id)
         cache = get_chat_admins_cache()
         cache[chat_id] = [admin.user.id for admin in admins]
+        return True
+    except Exception:
+        return False
+
+async def sync_telegram_admins(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+    """
+    Register all current Telegram admins/owner of a chat in the bot's local
+    admin database. This ensures "the admin who added the bot can set it up"
+    and every other admin of that group works in any group the bot is in.
+    """
+    from database import db
+    try:
+        admins = await context.bot.get_chat_administrators(chat_id)
+        db.get_or_create_chat(chat_id)
+        for admin in admins:
+            user = admin.user
+            db.add_admin(user.id, chat_id, admin.custom_title or None)
+            db.get_or_create_user(user.id, user.username, user.first_name, user.last_name)
         return True
     except Exception:
         return False

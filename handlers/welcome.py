@@ -381,6 +381,13 @@ async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAUL
     chat_id = update.effective_chat.id
     new_members = update.message.new_chat_members or []
 
+    # Anti-raid: track joins and auto-enable under-attack mode on a burst
+    try:
+        from handlers.antiflood import check_raid
+        await check_raid(update, context)
+    except Exception as e:
+        logger.error(f"Raid check failed: {e}")
+
     # If the bot itself was added to the chat, register it and announce
     bot_user = context.bot
     bot_added = any(m.is_bot and m.id == bot_user.id for m in new_members)
@@ -427,11 +434,12 @@ async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAUL
                 pass
             return
 
-        # Enforce global bans on join
+        # Enforce global bans on join + register user
         for member in new_members:
             if member.is_bot:
                 continue
-            if db.is_banned(member.id):
+            banned = db.is_banned(member.id)
+            if banned:
                 try:
                     await context.bot.ban_chat_member(chat_id, member.id)
                     logger.info(f"Banned new member {member.id} due to global ban in chat {chat_id}")
@@ -439,6 +447,13 @@ async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAUL
                     logger.error(f"Failed to ban globally banned member {member.id}: {e}")
             else:
                 db.get_or_create_user(member.id, member.username, member.first_name, member.last_name)
+
+        # Enforce federation bans on join
+        try:
+            from handlers.federations import enforce_federation_bans
+            await enforce_federation_bans(update, context)
+        except Exception as e:
+            logger.error(f"Federation ban enforcement failed: {e}")
 
         if not settings:
             return

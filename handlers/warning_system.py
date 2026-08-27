@@ -28,24 +28,24 @@ async def warn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Get current warning count
         warning_count = db.get_warnings_count(user_id, chat_id)
-        
+        settings = db.get_warn_settings(chat_id)
+
         user_mention = format_user_mention(user_obj) if user_obj else f"User {user_id}"
-        
+
         warning_msg = (
             f"⚠️ {user_mention} has been warned!\n"
             f"**Reason:** {reason}\n"
-            f"**Warnings:** {warning_count}/{Config.MAX_WARNINGS}"
+            f"**Warnings:** {warning_count}/{settings['limit']}"
         )
-        
-        # Check if user should be banned for too many warnings
-        if warning_count >= Config.MAX_WARNINGS:
-            try:
-                await context.bot.ban_chat_member(chat_id, user_id)
-                db.add_ban(user_id, chat_id, admin_id, f"Exceeded warning limit ({Config.MAX_WARNINGS} warnings)")
-                warning_msg += f"\n\n🔨 **User has been banned for exceeding the warning limit!**"
-            except BadRequest as e:
-                warning_msg += f"\n\n❌ **Failed to auto-ban user: {e}**"
-        
+
+        # Apply warn_mode consequence at the warning limit
+        if warning_count >= settings['limit']:
+            from handlers.moderation import apply_warn_consequence
+            consequence = await apply_warn_consequence(chat_id, user_id, admin_id, context)
+            if consequence:
+                warning_msg += f"\n\n🚨 **User has been {consequence} for exceeding the warning limit!**"
+
+
         await update.message.reply_text(warning_msg, parse_mode='Markdown')
 
 @is_admin_command
@@ -99,15 +99,14 @@ async def swarn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Add warning
         db.add_warning(user_id, chat_id, admin_id, reason)
         
-        # Check if user should be banned
+        # Apply warn_mode consequence at the warning limit
         warning_count = db.get_warnings_count(user_id, chat_id)
-        if warning_count >= Config.MAX_WARNINGS:
-            try:
-                await context.bot.ban_chat_member(chat_id, user_id)
-                db.add_ban(user_id, chat_id, admin_id, f"Exceeded warning limit ({Config.MAX_WARNINGS} warnings)")
-            except BadRequest:
-                pass
-        
+        settings = db.get_warn_settings(chat_id)
+        if warning_count >= settings['limit']:
+            from handlers.moderation import apply_warn_consequence
+            await apply_warn_consequence(chat_id, user_id, admin_id, context)
+
+
         # Delete command message
         try:
             await context.bot.delete_message(chat_id, update.message.message_id)
@@ -131,9 +130,10 @@ async def unwarn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             warning_count = db.get_warnings_count(user_id, chat_id)
             user_mention = format_user_mention(user_obj) if user_obj else f"User {user_id}"
             
+            settings = db.get_warn_settings(chat_id)
             await update.message.reply_text(
                 f"✅ Removed one warning from {user_mention}!\n"
-                f"**Current warnings:** {warning_count}/{Config.MAX_WARNINGS}",
+                f"**Current warnings:** {warning_count}/{settings['limit']}",
                 parse_mode='Markdown'
             )
         else:
@@ -188,9 +188,10 @@ async def warnings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 (db.Warning.chat_id == chat_id) | (db.Warning.is_global == True)
             ).order_by(db.Warning.created_at.desc()).limit(5).all()
             
+            settings = db.get_warn_settings(chat_id)
             warning_msg = (
                 f"⚠️ **Warning Status for {user_mention}**\n\n"
-                f"**Current warnings:** {warning_count}/{Config.MAX_WARNINGS}\n"
+                f"**Current warnings:** {warning_count}/{settings['limit']}\n"
             )
             
             if recent_warnings:

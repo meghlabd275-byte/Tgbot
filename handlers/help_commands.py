@@ -19,6 +19,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /pin - Pin a chat message (reply to message)
 /unpin - Un-pin the last pinned message
 /purge [amount] - Delete messages (reply to start point or specify amount)
+/adminlist, /admins - List the group's admins
+/warnmode [mode] - Set warning-limit action (kick/ban/mute/tban)
 
 **[Admin] User Management**
 /promote - Add a user as an admin *
@@ -54,6 +56,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /unwhitelist - Remove a user from the whitelist *
 /whitelisted - View a list of whitelisted users
 
+**[Admin] Approvals & Ignores**
+/approve - Approve a user (immune to automated actions)
+/unapprove - Remove approval
+/approved - View approved users
+/unapproveall - Remove all approvals
+/ignore - Ignore a user's commands
+/unignore - Remove ignore
+/ignored - View ignored users
+
 /resetuser - Remove bans, warns, mutes for a user *
 /resetrep - Reset a user's reputation to 0 *
 /user - View information about a user
@@ -88,6 +99,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /lock <type> - Lock a message type (url, photo, video, document, sticker, voice, etc.)
 /unlock <type> - Unlock a message type
 /locks - Show locked message types
+/locktypes - List all lockable message types
+/allowlist [domain] - Allow a domain to bypass URL locks/removal
+/unallowlist <domain> - Remove a domain from the allowlist
 /antispam on|off - Toggle spam-pattern detection
 
 **[Admin] URL Remover (auto-delete links)**
@@ -98,10 +112,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /removeurls warn on|off - Also warn the sender
 /removeurls status - Show URL-remover settings
 
-**[Admin] Anti-Flood**
+**[Admin] Anti-Flood & Anti-Raid**
 /setflood <limit> - Set flood message limit (e.g. /setflood 10)
 /setfloodmode <mode> - Set flood action (ban, mute, kick)
 /flood - Show flood settings
+/antiraid - Configure anti-raid (auto under-attack on mass joins)
 
 **[Admin] Notes & Rules**
 /save <name> <content> - Save a note (use #name to retrieve)
@@ -123,6 +138,29 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /listcmds - List custom commands
 /cleanup - Clean up old data
 /backup - Backup bot data
+
+**[Admin] Federations**
+/fednew, /newfed <name> - Create a new federation
+/feddel, /delfed - Delete your federation
+/fedrename, /renamefed <name> - Rename your federation
+/fedinfo - Show your federation info
+/fedadmins - List federation admins
+/fedpromote, /fpromote - Promote a federation admin
+/feddemote, /fdemote - Demote a federation admin
+/fedjoin, /joinfed <fed_id> - Join a federation
+/fedleave, /leavefed - Leave the federation
+/fedchat, /chatfed - Show the chat's federation
+/fban, /fedban - Federation-ban a user
+/fedunban, /unfban, /funban - Federation-unban a user
+/fedkick, /fkick - Federation-kick a user
+/fedmute, /fmute - Federation-mute a user
+/fedbans, /fbans - List federation bans
+
+**[Admin] Connections**
+/connect <chat> - Connect to another chat (PM or group)
+/disconnect - Disconnect
+/connection, /connections - Show current connection
+/reconnect - Re-connect to the last chat
 
 **Admin Verification**
 Forward any message from a user to the bot in private to verify if they are an admin in any chat where the bot is present.

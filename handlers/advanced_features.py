@@ -31,34 +31,6 @@ class ChatSettings(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
-class Federation(Base):
-    __tablename__ = 'federations'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    fed_id = Column(String(36), unique=True)  # UUID
-    name = Column(String(255))
-    owner_id = Column(BigInteger)
-    created_at = Column(DateTime, default=func.now())
-
-class FederationChat(Base):
-    __tablename__ = 'federation_chats'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    fed_id = Column(String(36))
-    chat_id = Column(BigInteger)
-    joined_by = Column(BigInteger)
-    joined_at = Column(DateTime, default=func.now())
-
-class FederationBan(Base):
-    __tablename__ = 'federation_bans'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    fed_id = Column(String(36))
-    user_id = Column(BigInteger)
-    banned_by = Column(BigInteger)
-    reason = Column(Text)
-    created_at = Column(DateTime, default=func.now())
-
 class CustomCommand(Base):
     __tablename__ = 'custom_commands'
     

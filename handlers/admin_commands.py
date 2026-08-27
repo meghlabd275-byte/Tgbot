@@ -2,7 +2,10 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ChatMemberStatus
 from database import db
-from utils import is_admin_command, is_group_command, get_file_id_from_message
+from utils import (
+    is_admin_command, is_group_command, get_file_id_from_message,
+    get_telegram_admins, sync_telegram_admins,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,10 +24,10 @@ async def fileid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @is_group_command
 async def activate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Register the current chat"""
+    """Register the current chat and sync all of its admins into the bot."""
     chat = update.effective_chat
     user = update.effective_user
-    
+
     # Check if user is admin in the chat
     try:
         member = await context.bot.get_chat_member(chat.id, user.id)
@@ -35,22 +38,87 @@ async def activate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error checking admin status: {e}")
         await update.message.reply_text("❌ Error checking admin permissions.")
         return
-    
-    # Register chat and user
+
+    # Register chat, user, and ALL current Telegram admins of the chat so any
+    # admin of this group can manage the bot (multi-admin support).
     db.get_or_create_chat(chat.id, chat.title)
     db.get_or_create_user(user.id, user.username, user.first_name, user.last_name)
-    
-    # Add user as admin
-    db.add_admin(user.id, chat.id)
-    
+    await sync_telegram_admins(context, chat.id)
+
+    admin_count = len(db.get_chat_admins(chat.id))
+
     await update.message.reply_text(
         f"✅ Chat **{chat.title}** has been activated!\n"
-        f"👤 {user.first_name} has been registered as an admin.",
+        f"📋 **{admin_count} admin(s)** registered for this group.\n"
+        "Any group admin can now configure and use the bot in this chat.",
         parse_mode='Markdown'
     )
 
+
+async def adminlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """List the group's admins (usable by anyone, mirrors Rose's /adminlist)."""
+    chat_id = update.effective_chat.id
+    # Prefer the live Telegram admin list, fall back to the bot's local DB.
+    admins = await get_telegram_admins(context, chat_id)
+
+    if admins is None:
+        session = db.get_session()
+        try:
+            rows = session.query(db.Admin).filter(db.Admin.chat_id == chat_id).all()
+            ids = [r.user_id for r in rows]
+        finally:
+            session.close()
+        if not ids:
+            await update.message.reply_text("👥 Could not retrieve the admin list.")
+            return
+        msg = "👥 **Group Admins:**\n\n"
+        for uid in ids:
+            msg += f"• `{uid}`\n"
+        await update.message.reply_text(msg, parse_mode='Markdown')
+        return
+
+    msg = f"👥 **Group Admins ({len(admins)}):**\n\n"
+    for admin in admins:
+        name = admin.first_name
+        if admin.last_name:
+            name += f" {admin.last_name}"
+        mention = f"@{admin.username}" if admin.username else name
+        icon = "🤖 " if admin.id == context.bot.id else "• "
+        msg += f"{icon}{mention} — `{admin.id}`\n"
+    await update.message.reply_text(msg, parse_mode='Markdown')
+
+
 @is_admin_command
 @is_group_command
+async def warnmode_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """View or set how the bot reacts when a user hits the warning limit."""
+    from handlers.moderation import VALID_WARN_MODES, set_warn_mode_command_response
+
+    chat_id = update.effective_chat.id
+
+    if not context.args:
+        settings = db.get_warn_settings(chat_id)
+        await update.message.reply_text(
+            f"⚠️ **Warn Mode: {settings['mode']}**\n"
+            f"**Warning limit:** {settings['limit']}\n\n"
+            f"Available modes: {', '.join(VALID_WARN_MODES)}\n"
+            "Usage: `/warnmode <kick|ban|mute|tban>`",
+            parse_mode='Markdown',
+        )
+        return
+
+    mode = context.args[0].lower().strip()
+    if mode not in VALID_WARN_MODES:
+        await update.message.reply_text(
+            f"❌ Invalid warn mode. Use: {', '.join(VALID_WARN_MODES)}"
+        )
+        return
+
+    response = set_warn_mode_command_response(chat_id, mode)
+    await update.message.reply_text(response, parse_mode='Markdown')
+
+
+
 async def silence_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Silence the chat - only admins can speak"""
     chat_id = update.effective_chat.id
@@ -124,11 +192,13 @@ ua_command = underattack_command
 
 @is_admin_command
 async def reload_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Reload admin cache"""
+    """Reload admin cache and resync all current Telegram admins into the DB"""
     from utils import update_chat_admins_cache
-    
+
     chat_id = update.effective_chat.id
     success = await update_chat_admins_cache(context, chat_id)
+    # Also resync the persistent admin DB so any Telegram admin works.
+    await sync_telegram_admins(context, chat_id)
     
     if success:
         await update.message.reply_text("✅ Admin cache reloaded successfully.")

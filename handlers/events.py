@@ -115,7 +115,10 @@ async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAUL
        new_status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
         # User was promoted to admin
         logger.info(f"User {user_id} was promoted to admin in chat {chat_id}")
-        
+        user = update.chat_member.new_chat_member.user
+        db.get_or_create_chat(chat_id)
+        db.get_or_create_user(user.id, user.username, user.first_name, user.last_name)
+        db.add_admin(user.id, chat_id)
     elif old_status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] and \
          new_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED]:
         # User was demoted from admin

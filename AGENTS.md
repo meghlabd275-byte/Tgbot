@@ -76,3 +76,30 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
   `pool_timeout` to survive managed databases dropping idle connections.
 - Driver: `psycopg[binary]` (psycopg3) - has wheels for Python 3.13, unlike
   psycopg2-binary which fails to build.
+- MySQL/MariaDB supported via `mysql+pymysql://` URLs (`PyMySQL` + `cryptography`
+  in requirements.txt); `DatabaseManager.__init__` sets `pool_pre_ping`,
+  `pool_recycle=3600` for MySQL.
+
+## Feature-parity work (Rose / GroupHelp / WeGroup)
+- `handlers/federations.py` — full federation commands (`/fednew`, `/fban`,
+  `/fedjoin`, ...) with tables `federations`, `federation_admins`,
+  `federation_chats` (chat_id unique), `federation_bans`, `federation_mutes`.
+  `enforce_federation_bans()` runs on member join (wired into
+  `welcome.handle_new_member_welcome`). NOTE: `handlers/advanced_features.py`
+  previously declared duplicate `federation*` tables — removed; federations
+  tables must only be declared in `handlers/federations.py`.
+- `handlers/connections.py` — Rose-style connections (`/connect`, `/disconnect`,
+  `/connection`, `/reconnect`, callback resolution). No DB tables.
+- `handlers/approvals.py` — `/approve|unapprove|approved|unapproveall|ignore|…`
+  with `Approved`/`Ignored` tables. `db.is_approved()` checks this table and
+  approved users bypass flood/filter/url actions.
+- `handlers/antiflood.py` — `/antiraid` (on|off|set|status) persists
+  `RaidSettings`; `check_raid()` is called from `handle_new_member_welcome`.
+- `handlers/admin_commands.py` — `/adminlist`, `/admins`, `/warnmode` (kick|ban|mute|tban).
+  `reload_command` resyncs Telegram admins into DB.
+- `utils.py` — `is_telegram_admin()` uses `get_chat_administrators` as the
+  fallback for `is_admin_command`, so ANY group admin works in ANY group the
+  bot is in (auto-registers on first use). `sync_telegram_admins()` bulk-syncs.
+- `handlers/filters.py` — `/locktypes`, `/allowlist`, `/unallowlist` command
+  verbs exist; check function names before assuming they are absent.
+

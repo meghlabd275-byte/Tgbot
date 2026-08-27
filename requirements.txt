@@ -9,3 +9,7 @@ urllib3>=2.1.0
 # psycopg3 is the modern Postgres driver (with prebuilt wheels) used by
 # SQLAlchemy for PostgreSQL database connections.
 psycopg[binary]>=3.1,<4
+# PyMySQL is the pure-Python MySQL/MariaDB driver used by SQLAlchemy.
+PyMySQL>=1.1,<2
+# cryptography enables SHA-256 password auth for MySQL 8+.
+cryptography>=41

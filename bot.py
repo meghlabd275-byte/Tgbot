@@ -20,7 +20,8 @@ from database import db
 from handlers.admin_commands import (
     fileid_command, activate_command, silence_command, unsilence_command,
     underattack_command, ua_command, reload_command, debug_command,
-    pin_command, unpin_command, purge_command
+    pin_command, unpin_command, purge_command,
+    adminlist_command, warnmode_command
 )
 
 from handlers.user_management import (
@@ -61,12 +62,14 @@ from handlers.events import (
 
 # Import new advanced handlers
 from handlers.antiflood import (
-    setflood_command, setfloodmode_command, flood_command, check_flood
+    setflood_command, setfloodmode_command, flood_command, check_flood,
+    antiraid_command, check_raid
 )
 
 from handlers.filters import (
     addfilter_command, removefilter_command, filters_command,
     lock_command, unlock_command, locks_command, antispam_command,
+    locktypes_command, allowlist_command, unallowlist_command,
     check_message_filters
 )
 
@@ -94,6 +97,24 @@ from handlers.advanced_features import (
     setlang_command, nightmode_command, slowmode_command,
     addcmd_command, delcmd_command, listcmds_command, cleanup_command,
     backup_command, handle_custom_command, check_night_mode
+)
+
+from handlers.federations import (
+    fednew_command, feddel_command, fedrename_command, fedinfo_command,
+    fedadmins_command, fedpromote_command, feddemote_command,
+    fedjoin_command, fedleave_command, fedchat_command,
+    fedban_command, fedunban_command, fedkick_command, fedmute_command,
+    fedbans_command, enforce_federation_bans
+)
+
+from handlers.connections import (
+    connect_command, handle_connect_callback, disconnect_command,
+    connection_command, reconnect_command, get_effective_chat_id
+)
+
+from handlers.approvals import (
+    approve_command, unapprove_command, approval_command, approved_command,
+    unapproveall_command, ignore_command, unignore_command, ignored_command
 )
 
 # Configure logging
@@ -168,6 +189,9 @@ def main():
         application.add_handler(CommandHandler("pin", pin_command))
         application.add_handler(CommandHandler("unpin", unpin_command))
         application.add_handler(CommandHandler("purge", purge_command))
+        application.add_handler(CommandHandler("adminlist", adminlist_command))
+        application.add_handler(CommandHandler("admins", adminlist_command))
+        application.add_handler(CommandHandler("warnmode", warnmode_command))
         
         # User management commands
         application.add_handler(CommandHandler("promote", promote_command))
@@ -228,6 +252,7 @@ def main():
         application.add_handler(CommandHandler("setflood", setflood_command))
         application.add_handler(CommandHandler("setfloodmode", setfloodmode_command))
         application.add_handler(CommandHandler("flood", flood_command))
+        application.add_handler(CommandHandler("antiraid", antiraid_command))
         
         # Filter commands
         application.add_handler(CommandHandler("addfilter", addfilter_command))
@@ -236,7 +261,11 @@ def main():
         application.add_handler(CommandHandler("lock", lock_command))
         application.add_handler(CommandHandler("unlock", unlock_command))
         application.add_handler(CommandHandler("locks", locks_command))
+        application.add_handler(CommandHandler("locktypes", locktypes_command))
         application.add_handler(CommandHandler("antispam", antispam_command))
+        application.add_handler(CommandHandler("allowlist", allowlist_command))
+        application.add_handler(CommandHandler("unallowlist", unallowlist_command))
+        application.add_handler(CommandHandler("allowslist", allowlist_command))
         
         # Welcome system commands
         application.add_handler(CommandHandler("setwelcome", setwelcome_command))
@@ -271,6 +300,54 @@ def main():
         application.add_handler(CommandHandler("listcmds", listcmds_command))
         application.add_handler(CommandHandler("cleanup", cleanup_command))
         application.add_handler(CommandHandler("backup", backup_command))
+        
+        # Federation commands
+        application.add_handler(CommandHandler("fednew", fednew_command))
+        application.add_handler(CommandHandler("newfed", fednew_command))
+        application.add_handler(CommandHandler("feddel", feddel_command))
+        application.add_handler(CommandHandler("delfed", feddel_command))
+        application.add_handler(CommandHandler("fedrename", fedrename_command))
+        application.add_handler(CommandHandler("renamefed", fedrename_command))
+        application.add_handler(CommandHandler("fedinfo", fedinfo_command))
+        application.add_handler(CommandHandler("fedadmins", fedadmins_command))
+        application.add_handler(CommandHandler("fedpromote", fedpromote_command))
+        application.add_handler(CommandHandler("fpromote", fedpromote_command))
+        application.add_handler(CommandHandler("feddemote", feddemote_command))
+        application.add_handler(CommandHandler("fdemote", feddemote_command))
+        application.add_handler(CommandHandler("fedjoin", fedjoin_command))
+        application.add_handler(CommandHandler("joinfed", fedjoin_command))
+        application.add_handler(CommandHandler("fedleave", fedleave_command))
+        application.add_handler(CommandHandler("leavefed", fedleave_command))
+        application.add_handler(CommandHandler("fedchat", fedchat_command))
+        application.add_handler(CommandHandler("chatfed", fedchat_command))
+        application.add_handler(CommandHandler("fban", fedban_command))
+        application.add_handler(CommandHandler("fedban", fedban_command))
+        application.add_handler(CommandHandler("fedunban", fedunban_command))
+        application.add_handler(CommandHandler("unfban", fedunban_command))
+        application.add_handler(CommandHandler("funban", fedunban_command))
+        application.add_handler(CommandHandler("fedkick", fedkick_command))
+        application.add_handler(CommandHandler("fkick", fedkick_command))
+        application.add_handler(CommandHandler("fedmute", fedmute_command))
+        application.add_handler(CommandHandler("fmute", fedmute_command))
+        application.add_handler(CommandHandler("fedbans", fedbans_command))
+        application.add_handler(CommandHandler("fbans", fedbans_command))
+
+        # Connection commands
+        application.add_handler(CommandHandler("connect", connect_command))
+        application.add_handler(CommandHandler("disconnect", disconnect_command))
+        application.add_handler(CommandHandler("connection", connection_command))
+        application.add_handler(CommandHandler("connections", connection_command))
+        application.add_handler(CommandHandler("reconnect", reconnect_command))
+
+        # Approval & ignore commands
+        application.add_handler(CommandHandler("approve", approve_command))
+        application.add_handler(CommandHandler("unapprove", unapprove_command))
+        application.add_handler(CommandHandler("approval", approval_command))
+        application.add_handler(CommandHandler("approved", approved_command))
+        application.add_handler(CommandHandler("unapproveall", unapproveall_command))
+        application.add_handler(CommandHandler("ignore", ignore_command))
+        application.add_handler(CommandHandler("unignore", unignore_command))
+        application.add_handler(CommandHandler("ignored", ignored_command))
         
         # Event handlers
         application.add_handler(MessageHandler(

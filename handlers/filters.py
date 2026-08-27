@@ -46,9 +46,47 @@ class MediaFilter(Base):
     created_by = Column(BigInteger)
     created_at = Column(DateTime, default=func.now())
 
+class URLAllowlist(Base):
+    __tablename__ = 'url_allowlist'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    chat_id = Column(BigInteger)
+    domain = Column(String(255))
+    created_by = Column(BigInteger)
+    created_at = Column(DateTime, default=func.now())
+
 # Recreate database with new tables
 def update_database():
     Base.metadata.create_all(bind=database_instance.engine)
+
+# All lockable message types (mirrors Rose's /locktypes)
+LOCK_TYPES = [
+    'url', 'invite', 'forward', 'photo', 'video', 'audio', 'voice',
+    'document', 'sticker', 'gif', 'animation', 'video_note', 'contact',
+    'location', 'poll', 'reply', 'game', 'emoji', 'text',
+]
+
+LOCK_DESCRIPTIONS = {
+    'url': 'Messages containing web URLs',
+    'invite': 'Telegram invite (t.me) links',
+    'forward': 'Forwarded messages',
+    'photo': 'Photo messages',
+    'video': 'Video messages',
+    'audio': 'Audio messages',
+    'voice': 'Voice notes',
+    'document': 'Files / documents',
+    'sticker': 'Stickers',
+    'gif': 'GIFs / animations',
+    'animation': 'Animations',
+    'video_note': 'Round (video) messages',
+    'contact': 'Contact cards',
+    'location': 'Location shares',
+    'poll': 'Polls',
+    'reply': 'Replies to other messages',
+    'game': 'Games',
+    'emoji': 'Messages containing emojis',
+    'text': 'Plain text messages',
+}
 
 # Common spam patterns
 SPAM_PATTERNS = [
@@ -167,102 +205,205 @@ async def filters_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @is_admin_command
 @is_group_command
 async def lock_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Lock specific message types"""
+    """Lock one or more message types (e.g. /lock url gif sticker)"""
     if not context.args:
         await update.message.reply_text(
             "❌ Usage: `/lock <type>`\n"
-            "Types: url, photo, video, document, sticker, voice, video_note, animation, contact, location, poll, forward, reply"
+            f"Types: {', '.join(LOCK_TYPES)}\n\n"
+            "You can lock several at once: `/lock url gif sticker`\n"
+            "See all types with `/locktypes`.",
+            parse_mode='Markdown'
         )
         return
-    
-    media_type = context.args[0].lower()
-    valid_types = ['url', 'photo', 'video', 'document', 'sticker', 'voice', 'video_note', 'animation', 'contact', 'location', 'poll', 'forward', 'reply']
-    
-    if media_type not in valid_types:
-        await update.message.reply_text(f"❌ Invalid type. Valid types: {', '.join(valid_types)}")
+
+    requested = [a.lower().strip() for a in context.args]
+    invalid = [t for t in requested if t not in LOCK_TYPES]
+    if invalid:
+        await update.message.reply_text(
+            f"❌ Invalid type(s): {', '.join(invalid)}\n"
+            f"Valid types: {', '.join(LOCK_TYPES)}"
+        )
         return
-    
+
     chat_id = update.effective_chat.id
     admin_id = update.effective_user.id
-    
+
     session = db.get_session()
     try:
-        existing = session.query(MediaFilter).filter(
-            MediaFilter.chat_id == chat_id,
-            MediaFilter.media_type == media_type
-        ).first()
-        
-        if existing:
-            existing.is_locked = True
-            session.commit()
-        else:
-            media_filter = MediaFilter(
-                chat_id=chat_id,
-                media_type=media_type,
-                is_locked=True,
-                created_by=admin_id
-            )
-            session.add(media_filter)
-            session.commit()
-        
-        await update.message.reply_text(f"🔒 Locked {media_type} messages in this chat.")
-    
+        for media_type in requested:
+            existing = session.query(MediaFilter).filter(
+                MediaFilter.chat_id == chat_id,
+                MediaFilter.media_type == media_type
+            ).first()
+
+            if existing:
+                existing.is_locked = True
+            else:
+                session.add(MediaFilter(
+                    chat_id=chat_id,
+                    media_type=media_type,
+                    is_locked=True,
+                    created_by=admin_id
+                ))
+        session.commit()
+        await update.message.reply_text(f"🔒 Locked: {', '.join(requested)}")
     finally:
         session.close()
+
 
 @is_admin_command
 @is_group_command
 async def unlock_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Unlock specific message types"""
+    """Unlock one or more message types"""
     if not context.args:
         await update.message.reply_text("❌ Usage: `/unlock <type>`")
         return
-    
-    media_type = context.args[0].lower()
+
+    requested = [a.lower().strip() for a in context.args]
     chat_id = update.effective_chat.id
-    
+
     session = db.get_session()
     try:
-        media_filter = session.query(MediaFilter).filter(
-            MediaFilter.chat_id == chat_id,
-            MediaFilter.media_type == media_type
-        ).first()
-        
-        if media_filter:
-            media_filter.is_locked = False
-            session.commit()
-            await update.message.reply_text(f"🔓 Unlocked {media_type} messages in this chat.")
-        else:
-            await update.message.reply_text(f"❌ {media_type} is not locked.")
-    
+        for media_type in requested:
+            media_filter = session.query(MediaFilter).filter(
+                MediaFilter.chat_id == chat_id,
+                MediaFilter.media_type == media_type
+            ).first()
+
+            if media_filter:
+                media_filter.is_locked = False
+        session.commit()
+        await update.message.reply_text(f"🔓 Unlocked: {', '.join(requested)}")
     finally:
         session.close()
+
 
 @is_admin_command
 @is_group_command
 async def locks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show current locks"""
+    """Show current locks (or full lock status list)."""
     chat_id = update.effective_chat.id
-    
+    show_all = bool(context.args) and context.args[0].lower() == 'list'
+
     session = db.get_session()
     try:
-        locks = session.query(MediaFilter).filter(
-            MediaFilter.chat_id == chat_id,
-            MediaFilter.is_locked == True
+        rows = session.query(MediaFilter).filter(
+            MediaFilter.chat_id == chat_id
         ).all()
-        
-        if not locks:
-            await update.message.reply_text("🔓 No message types are currently locked.")
-            return
-        
-        lock_list = "🔒 **Locked Message Types:**\n\n"
-        for lock in locks:
-            lock_list += f"• {lock.media_type}\n"
-        
-        await update.message.reply_text(lock_list, parse_mode='Markdown')
-    
+        locked_map = {r.media_type: r.is_locked for r in rows}
+
+        if show_all:
+            msg = "🔒 **Lock Status (all types):**\n\n"
+            for t in LOCK_TYPES:
+                status = '🔒 locked' if locked_map.get(t) else '🔓 unlocked'
+                desc = LOCK_DESCRIPTIONS.get(t, '')
+                msg += f"• `{t}` — {status}"
+                if desc:
+                    msg += f" ({desc})"
+                msg += "\n"
+        else:
+            locked = [t for t in LOCK_TYPES if locked_map.get(t)]
+            if not locked:
+                await update.message.reply_text("🔓 No message types are currently locked.")
+                return
+            msg = "🔒 **Locked Message Types:**\n\n"
+            for t in locked:
+                msg += f"• {t}\n"
+            msg += "\nUse `/locks list` to see all types."
+
+        await update.message.reply_text(msg, parse_mode='Markdown')
     finally:
         session.close()
+
+
+@is_admin_command
+@is_group_command
+async def locktypes_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """List all lockable message types with descriptions."""
+    msg = "🔒 **Available Lock Types:**\n\n"
+    for t in LOCK_TYPES:
+        msg += f"**{t}** — {LOCK_DESCRIPTIONS.get(t, '')}\n"
+    msg += "\nUsage: `/lock <type>` / `/unlock <type>` / `/locks list`"
+    await update.message.reply_text(msg, parse_mode='Markdown')
+
+
+@is_admin_command
+@is_group_command
+async def allowlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Allowlist URLs/domains so they bypass lock url / URL removal."""
+    chat_id = update.effective_chat.id
+
+    session = db.get_session()
+    try:
+        if not context.args:
+            rows = session.query(URLAllowlist).filter(URLAllowlist.chat_id == chat_id).all()
+            if not rows:
+                await update.message.reply_text("📋 No allowlisted domains.")
+                return
+            msg = "✅ **Allowlisted Domains:**\n\n"
+            for r in rows:
+                msg += f"• {r.domain}\n"
+            await update.message.reply_text(msg, parse_mode='Markdown')
+            return
+
+        domain = re.sub(r'^https?://', '', context.args[0]).strip().strip('/')
+        if not domain:
+            await update.message.reply_text("❌ Invalid domain.")
+            return
+
+        existing = session.query(URLAllowlist).filter(
+            URLAllowlist.chat_id == chat_id,
+            URLAllowlist.domain == domain
+        ).first()
+
+        if existing:
+            await update.message.reply_text("ℹ️ That domain is already allowlisted.")
+        else:
+            session.add(URLAllowlist(chat_id=chat_id, domain=domain, created_by=update.effective_user.id))
+            session.commit()
+            await update.message.reply_text(f"✅ Allowlisted `{domain}`. Lock url / URL removal will ignore it.")
+    finally:
+        session.close()
+
+
+@is_admin_command
+@is_group_command
+async def unallowlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if not context.args:
+        await update.message.reply_text("❌ Usage: `/unallowlist <domain>`")
+        return
+
+    domain = re.sub(r'^https?://', '', context.args[0]).strip().strip('/')
+    session = db.get_session()
+    try:
+        row = session.query(URLAllowlist).filter(
+            URLAllowlist.chat_id == chat_id,
+            URLAllowlist.domain == domain
+        ).first()
+        if row:
+            session.delete(row)
+            session.commit()
+            await update.message.reply_text(f"✅ Removed `{domain}` from the allowlist.")
+        else:
+            await update.message.reply_text("❌ That domain is not allowlisted.")
+    finally:
+        session.close()
+
+
+def is_domain_allowlisted(chat_id: int, domain: str) -> bool:
+    session = db.get_session()
+    try:
+        domain = domain.lower()
+        rows = session.query(URLAllowlist).filter(URLAllowlist.chat_id == chat_id).all()
+        for r in rows:
+            allowed = r.domain.lower()
+            if domain == allowed or domain.endswith('.' + allowed):
+                return True
+        return False
+    finally:
+        session.close()
+
 
 @is_admin_command
 @is_group_command
@@ -302,8 +443,9 @@ async def check_message_filters(update: Update, context: ContextTypes.DEFAULT_TY
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
 
-    # Skip admins and whitelisted users
-    if db.is_admin(user_id, chat_id) or db.is_whitelisted(user_id, chat_id):
+    # Skip admins, whitelisted and approved users
+    if (db.is_admin(user_id, chat_id) or db.is_whitelisted(user_id, chat_id)
+            or db.is_approved(user_id, chat_id)):
         return False
 
     # --- URL Remover (auto-remove all URLs/invites) - checks text AND captions ---
@@ -391,7 +533,13 @@ async def check_url_filters(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         
         for url in urls:
             domain = urlparse(url).netloc.lower()
-            
+            if not domain:
+                continue
+
+            # Allowlisted domains always pass
+            if is_domain_allowlisted(chat_id, domain):
+                continue
+
             # Check against suspicious domains
             if domain in SUSPICIOUS_DOMAINS:
                 await apply_filter_action(update, context, 'delete', f"Suspicious shortened URL: {domain}")
@@ -399,7 +547,7 @@ async def check_url_filters(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             
             # Check against custom filters
             for url_filter in url_filters:
-                if url_filter.domain in domain:
+                if url_filter.domain in domain or domain in url_filter.domain:
                     if url_filter.is_whitelist:
                         continue  # Allowed domain
                     else:
@@ -426,12 +574,14 @@ async def check_media_filters(update: Update, context: ContextTypes.DEFAULT_TYPE
         media_type = 'document'
     elif message.sticker:
         media_type = 'sticker'
+    if message.animation:
+        media_type = 'animation'  # animation (GIF) maps to both 'gif' and 'animation'
     elif message.voice:
         media_type = 'voice'
     elif message.video_note:
         media_type = 'video_note'
-    elif message.animation:
-        media_type = 'animation'
+    elif message.audio:
+        media_type = 'audio'
     elif message.contact:
         media_type = 'contact'
     elif message.location:
@@ -443,38 +593,48 @@ async def check_media_filters(update: Update, context: ContextTypes.DEFAULT_TYPE
     elif message.reply_to_message:
         media_type = 'reply'
 
+    def _locked(session, t):
+        return session.query(MediaFilter).filter(
+            MediaFilter.chat_id == chat_id,
+            MediaFilter.media_type == t,
+            MediaFilter.is_locked == True
+        ).first() is not None
+
     session = db.get_session()
     try:
-        # Check the 'url' lock type: delete any message containing a URL.
-        # This makes `/lock url` actually functional.
         text_for_url = message.text or message.caption or ''
         if text_for_url:
-            url_lock = session.query(MediaFilter).filter(
-                MediaFilter.chat_id == chat_id,
-                MediaFilter.media_type == 'url',
-                MediaFilter.is_locked == True
-            ).first()
-            if url_lock and ('http' in text_for_url or 'www.' in text_for_url or 't.me' in text_for_url):
-                await apply_filter_action(update, context, url_lock.action, "Locked media type: url")
+            from handlers.url_remover import contains_invite_link
+
+            # 'url' lock: delete messages containing URLs (unless allowlisted)
+            if _locked(session, 'url') and ('http' in text_for_url or 'www.' in text_for_url):
+                urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', text_for_url)
+                fully_allowlisted = bool(urls) and all(
+                    is_domain_allowlisted(chat_id, urlparse(u).netloc.lower()) for u in urls)
+                if not fully_allowlisted:
+                    await apply_filter_action(update, context, 'delete', "Locked media type: url")
+                    return True
+
+            # 'invite' lock: delete messages containing t.me / telegram invite links
+            if _locked(session, 'invite') and contains_invite_link(text_for_url):
+                await apply_filter_action(update, context, 'delete', "Locked media type: invite")
                 return True
 
-        if not media_type:
-            return False
-
-        media_filter = session.query(MediaFilter).filter(
-            MediaFilter.chat_id == chat_id,
-            MediaFilter.media_type == media_type,
-            MediaFilter.is_locked == True
-        ).first()
-        
-        if media_filter:
-            await apply_filter_action(update, context, media_filter.action, f"Locked media type: {media_type}")
+        if media_type == 'animation':
+            # gif and animation are semantically identical here
+            for t in ('animation', 'gif'):
+                if _locked(session, t):
+                    await apply_filter_action(update, context, 'delete', f"Locked media type: {t}")
+                    return True
+        elif media_type and _locked(session, media_type):
+            await apply_filter_action(update, context, 'delete', f"Locked media type: {media_type}")
             return True
-    
+
     finally:
         session.close()
-    
+
     return False
+
 
 async def check_spam_patterns(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check message against spam patterns"""
@@ -502,13 +662,22 @@ async def apply_filter_action(update: Update, context: ContextTypes.DEFAULT_TYPE
         if action == 'warn':
             db.add_warning(user_id, chat_id, context.bot.id, reason)
             warning_count = db.get_warnings_count(user_id, chat_id)
-            
+
+            settings = db.get_warn_settings(chat_id)
+            extra = ""
+            if warning_count >= settings['limit']:
+                from handlers.moderation import apply_warn_consequence
+                consequence = await apply_warn_consequence(chat_id, user_id, context.bot.id, context)
+                if consequence:
+                    extra = f"\n🚨 User has been {consequence} for reaching the warning limit!"
+
             action_msg = await context.bot.send_message(
                 chat_id,
                 f"⚠️ {user.first_name} warned for: {reason}\n"
-                f"Warnings: {warning_count}/3"
+                f"Warnings: {warning_count}/{settings['limit']}{extra}"
             )
-            
+
+
         elif action == 'mute':
             from datetime import datetime, timedelta
             until_date = datetime.now() + timedelta(hours=1)
