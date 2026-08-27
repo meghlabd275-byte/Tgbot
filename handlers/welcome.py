@@ -539,9 +539,20 @@ async def handle_captcha(update: Update, context: ContextTypes.DEFAULT_TYPE, use
     # Create captcha buttons
     buttons = []
     correct_answer = answer
-    wrong_answers = [answer + random.randint(1, 5), answer - random.randint(1, 5), answer + random.randint(6, 10)]
-    
-    all_answers = [correct_answer] + wrong_answers[:2]
+
+    # Build up to 3 unique, positive wrong answers (never equal to the correct
+    # one and never negative/zero, so buttons always read as plausible numbers).
+    wrong_answers = []
+    attempts = 0
+    while len(wrong_answers) < 3 and attempts < 200:
+        attempts += 1
+        delta = random.randint(1, 9)
+        candidate = answer + random.choice((-1, 1)) * delta
+        if candidate <= 0 or candidate == correct_answer or candidate in wrong_answers:
+            continue
+        wrong_answers.append(candidate)
+
+    all_answers = [correct_answer] + wrong_answers
     random.shuffle(all_answers)
     
     for ans in all_answers:
