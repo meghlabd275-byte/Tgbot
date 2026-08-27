@@ -29,6 +29,9 @@ class WelcomeSettings(Base):
     delete_left_msg = Column(Boolean, default=False)     # delete "X left" service messages
     delete_all_system_msg = Column(Boolean, default=False)  # delete ALL service messages (pin, title, photo, group created, etc.)
     welcome_buttons = Column(Text)  # JSON string for buttons
+    welcome_button_text = Column(Text)      # label for the single welcome link button
+    welcome_button_url = Column(Text)       # url for the single welcome link button
+    can_delete_welcome = Column(Boolean, default=True)  # auto-delete welcome message
     captcha_enabled = Column(Boolean, default=False)
     captcha_time = Column(Integer, default=300)  # 5 minutes
     created_at = Column(DateTime, default=func.now())
@@ -404,6 +407,164 @@ async def joinhider_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         session.close()
 
+@is_admin_command
+@is_group_command
+async def setwelcomebutton_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Attach one inline link button to the welcome message.
+
+    Usage: /setwelcomebutton <label> <url>
+    e.g.  /setwelcomebutton Website https://example.com
+    """
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "❌ Usage: `/setwelcomebutton <label> <url>`\n"
+            "Example: `/setwelcomebutton Website https://example.com`\n\n"
+            "The welcome message bots reply to each new member will include an\n"
+            "inline button with this label that links to this URL.",
+            parse_mode='Markdown',
+        )
+        return
+
+    label = context.args[0].strip()
+    url = context.args[1].strip()
+    chat_id = update.effective_chat.id
+
+    if not url.startswith(('http://', 'https://', 't.me/')):
+        await update.message.reply_text(
+            "❌ Please provide a valid URL starting with http://, https:// or t.me/."
+        )
+        return
+
+    session = db.get_session()
+    try:
+        settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
+        if not settings:
+            settings = WelcomeSettings(chat_id=chat_id)
+            session.add(settings)
+        settings.welcome_button_text = label
+        settings.welcome_button_url = url
+        session.commit()
+    finally:
+        session.close()
+
+    await update.message.reply_text(
+        f"✅ Welcome button set: [{label}]({url}).",
+        parse_mode='Markdown',
+    )
+
+
+@is_admin_command
+@is_group_command
+async def welcomebuttons_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show the configured welcome inline button."""
+    chat_id = update.effective_chat.id
+    session = db.get_session()
+    try:
+        settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
+        if not settings or (not settings.welcome_button_text and not settings.welcome_button_url):
+            await update.message.reply_text(
+                "ℹ️ No welcome button configured.\n"
+                "Use `/setwelcomebutton <label> <url>` to add one."
+            )
+            return
+        await update.message.reply_text(
+            f"🔗 **Welcome Button:**\n"
+            f"• Label: `{settings.welcome_button_text}`\n"
+            f"• URL: {settings.welcome_button_url}\n\n"
+            "Remove it with `/delwelcomebutton`.",
+            parse_mode='Markdown',
+        )
+    finally:
+        session.close()
+
+
+@is_admin_command
+@is_group_command
+async def delwelcomebutton_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Remove the welcome inline button."""
+    chat_id = update.effective_chat.id
+    session = db.get_session()
+    try:
+        settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
+        if settings and (settings.welcome_button_text or settings.welcome_button_url):
+            settings.welcome_button_text = None
+            settings.welcome_button_url = None
+            session.commit()
+            await update.message.reply_text("✅ Welcome button removed.")
+        else:
+            await update.message.reply_text("ℹ️ No welcome button to remove.")
+    finally:
+        session.close()
+
+
+@is_admin_command
+@is_group_command
+async def welcomedelete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Control welcome auto-delete.
+
+    Usage:
+      /welcomedelete            -> show current setting
+      /welcomedelete <seconds>  -> delete the welcome after N seconds (0 disables)
+      /welcomedelete on         -> enable auto-delete (60s default)
+      /welcomedelete off        -> disable auto-delete
+    """
+    chat_id = update.effective_chat.id
+    session = db.get_session()
+    try:
+        settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
+        if not settings:
+            settings = WelcomeSettings(chat_id=chat_id)
+            session.add(settings)
+
+        if not context.args:
+            delay = settings.delete_welcome
+            if delay is None:
+                delay = 60
+            await update.message.reply_text(
+                f"🗑️ **Welcome Auto-Delete:**\n"
+                f"• Enabled: {'✅ Yes' if settings.can_delete_welcome else '❌ No'}\n"
+                f"• Delay: {delay}s (0 = disabled)\n\n"
+                "`/welcomedelete <seconds>` to change, `/welcomedelete on|off` to toggle.",
+                parse_mode='Markdown',
+            )
+            return
+
+        arg = context.args[0].lower()
+        if arg in ('on', 'enable'):
+            settings.can_delete_welcome = True
+            if not settings.delete_welcome:
+                settings.delete_welcome = 60
+            session.commit()
+            await update.message.reply_text(
+                f"✅ Welcome auto-delete enabled ({settings.delete_welcome}s).",
+                parse_mode='Markdown',
+            )
+        elif arg in ('off', 'disable'):
+            settings.can_delete_welcome = False
+            session.commit()
+            await update.message.reply_text("✅ Welcome auto-delete disabled.")
+        elif arg.lstrip('-').isdigit():
+            seconds = int(arg)
+            if seconds < 0:
+                await update.message.reply_text("❌ Delay must be 0 or a positive number.")
+                return
+            settings.delete_welcome = seconds
+            settings.can_delete_welcome = seconds > 0
+            session.commit()
+            if seconds == 0:
+                await update.message.reply_text("✅ Welcome auto-delete disabled (delay set to 0).")
+            else:
+                await update.message.reply_text(
+                    f"✅ Welcome message will auto-delete after {seconds} seconds."
+                )
+        else:
+            await update.message.reply_text(
+                "❌ Usage: `/welcomedelete [seconds|on|off]`", parse_mode='Markdown'
+            )
+    finally:
+        session.close()
+
+
 async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle new member with welcome message and captcha, plus security checks"""
     chat_id = update.effective_chat.id
@@ -633,14 +794,18 @@ async def kick_unverified_user(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
 async def send_welcome_message(update: Update, context: ContextTypes.DEFAULT_TYPE, user, settings):
     """Send welcome message to new user"""
     chat = update.effective_chat
-    
+
     member_count = await _get_member_count(context, chat.id)
     welcome_text = format_welcome_message(settings.welcome_message or '', user, chat, member_count)
-    
+
+    reply_markup = _build_welcome_keyboard(settings)
+
     try:
         # If media is attached, send the media with the welcome text as caption.
         if settings.welcome_media:
             kwargs = {'chat_id': chat.id, 'caption': welcome_text, 'parse_mode': 'Markdown'}
+            if reply_markup is not None:
+                kwargs['reply_markup'] = reply_markup
             if settings.media_type == 'photo':
                 welcome_msg = await context.bot.send_photo(settings.welcome_media, **kwargs)
             elif settings.media_type == 'video':
@@ -648,21 +813,62 @@ async def send_welcome_message(update: Update, context: ContextTypes.DEFAULT_TYP
             else:
                 welcome_msg = await context.bot.send_animation(settings.welcome_media, **kwargs)
         else:
-            welcome_msg = await context.bot.send_message(
-                chat.id,
-                welcome_text,
-                parse_mode='Markdown'
-            )
-        
-        # Delete welcome message after specified time
-        if settings.delete_welcome > 0:
+            kwargs = {'chat_id': chat.id, 'text': welcome_text, 'parse_mode': 'Markdown'}
+            if reply_markup is not None:
+                kwargs['reply_markup'] = reply_markup
+            welcome_msg = await context.bot.send_message(**kwargs)
+
+        # Auto-delete the welcome message after 60 seconds by default. Admins
+        # can change the delay with /welcomedelete <seconds> (see below).
+        delete_after = settings.delete_welcome
+        if delete_after is None:
+            delete_after = 60
+
+        if settings.can_delete_welcome and delete_after > 0:
             context.job_queue.run_once(
                 lambda context: context.bot.delete_message(chat.id, welcome_msg.message_id),
-                settings.delete_welcome
+                delete_after
             )
-    
+
     except Exception as e:
         logger.error(f"Error sending welcome message: {e}")
+
+
+def _build_welcome_keyboard(settings):
+    """
+    Build the welcome message inline keyboard.
+
+    Priority:
+      1. The single admin-configured link button (welcome_button_text + url).
+      2. The legacy JSON welcome_buttons (list of rows of buttons).
+    Returns None when no buttons are configured.
+    """
+    if getattr(settings, 'welcome_button_text', None) and getattr(settings, 'welcome_button_url', None):
+        return InlineKeyboardMarkup([[InlineKeyboardButton(
+            settings.welcome_button_text, url=settings.welcome_button_url
+        )]])
+
+    if getattr(settings, 'welcome_buttons', None):
+        import json
+        try:
+            rows = json.loads(settings.welcome_buttons)
+            keyboard = []
+            for row in rows:
+                buttons = []
+                for item in row:
+                    if item.get('url'):
+                        buttons.append(InlineKeyboardButton(item.get('text', '🔗'), url=item['url']))
+                    elif item.get('callback_data'):
+                        buttons.append(InlineKeyboardButton(item.get('text', 'Action'), callback_data=item['callback_data']))
+                if buttons:
+                    keyboard.append(buttons)
+            if keyboard:
+                return InlineKeyboardMarkup(keyboard)
+        except Exception as e:
+            logger.error(f"Failed to parse welcome_buttons JSON: {e}")
+
+    return None
+
 
 async def handle_left_member_goodbye(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle member leaving with goodbye message"""

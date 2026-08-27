@@ -18,9 +18,9 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
 ## Tests (all must pass)
 - `python test_bot.py` — 4 basic tests
 - `python test_advanced_bot.py` — 19 advanced tests (imports, tables, definitions)
-- `python test_functional.py` — 29 functional tests (exercises real command logic)
+- `python test_functional.py` — 34 functional tests (exercises real command logic)
 - `python test_url_remover.py` — 15 tests (URL remover, join hider, edited-message filters, hidden-hyperlink/entity detection)
-- Run all: `python -m pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py -q` (pytest collects 53 tests).
+- Run all: `python -m pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py -q` (pytest collects 58 tests).
 
 ## Critical bugs fixed (commit 26f40a3) — patterns to watch for
 1. **`db.<Model>` must exist as DatabaseManager attributes.** Handlers do
@@ -121,6 +121,18 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
   bot is in (auto-registers on first use). `sync_telegram_admins()` bulk-syncs.
 - `handlers/filters.py` — `/locktypes`, `/allowlist`, `/unallowlist` command
   verbs exist; check function names before assuming they are absent.
+- `handlers/quick_replies.py` — admin-configured auto-replies. `ContractAddress`
+  (`/setcontract <network> <address>`, `/delcontract`, `/contracts`) answers a
+  member's `ca`/`CA`/`contract` message with every configured address+network.
+  `KeywordLink` (`/setkeywordlink <keyword> <url> [text]`, `/delkeywordlink`,
+  `/keywordlinks`) replies with an inline button when a member's message contains
+  the keyword. `GreetingFilter` (`/greetingfilter on|off`) deletes throwaway
+  greetings. `handle_quick_replies()` is wired into `bot.handle_all_messages`.
+- `handlers/welcome.py` (new) — welcome inline button via `/setwelcomebutton`,
+  `/welcomebuttons`, `/delwelcomebutton` (columns `welcome_button_text`/`url`);
+  welcome auto-delete via `/welcomedelete [seconds|on|off]` (column
+  `can_delete_welcome`, `delete_welcome` defaults to 60s). `_build_welcome_keyboard()`
+  prefers the single button, then the legacy `welcome_buttons` JSON.
 
 ## Owner kill-switch (disable/resume services)
 - `database.py` — `DisabledChat` model (`disabled_chats` table: chat_id unique,

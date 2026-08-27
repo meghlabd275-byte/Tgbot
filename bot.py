@@ -75,8 +75,16 @@ from handlers.filters import (
 from handlers.welcome import (
     setwelcome_command, setgoodbye_command, welcome_command, goodbye_command,
     captcha_command, cleanservice_command, joinhider_command,
+    setwelcomebutton_command, welcomebuttons_command, delwelcomebutton_command,
+    welcomedelete_command,
     handle_new_member_welcome, handle_left_member_goodbye, handle_captcha_callback,
     handle_service_message
+)
+
+from handlers.quick_replies import (
+    setcontract_command, delcontract_command, contracts_command,
+    setkeywordlink_command, delkeywordlink_command, keywordlinks_command,
+    greetingfilter_command, handle_quick_replies
 )
 
 from handlers.url_remover import (
@@ -185,6 +193,10 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         # Check for note shortcuts (#notename)
         if await handle_note_shortcut(update, context):
+            return
+
+        # Quick replies: contract-address lookups, keyword links, greeting auto-delete
+        if await handle_quick_replies(update, context):
             return
 
         # Check for admin-configured user commands (!name)
@@ -319,7 +331,20 @@ def main():
         application.add_handler(CommandHandler("captcha", captcha_command))
         application.add_handler(CommandHandler("cleanservice", cleanservice_command))
         application.add_handler(CommandHandler("joinhider", joinhider_command))
+        application.add_handler(CommandHandler("setwelcomebutton", setwelcomebutton_command))
+        application.add_handler(CommandHandler("welcomebuttons", welcomebuttons_command))
+        application.add_handler(CommandHandler("delwelcomebutton", delwelcomebutton_command))
+        application.add_handler(CommandHandler("welcomedelete", welcomedelete_command))
         application.add_handler(CommandHandler("removeurls", removeurls_command))
+
+        # Quick reply commands (contract addresses, keyword links, greeting filter)
+        application.add_handler(CommandHandler("setcontract", setcontract_command))
+        application.add_handler(CommandHandler("delcontract", delcontract_command))
+        application.add_handler(CommandHandler("contracts", contracts_command))
+        application.add_handler(CommandHandler("setkeywordlink", setkeywordlink_command))
+        application.add_handler(CommandHandler("delkeywordlink", delkeywordlink_command))
+        application.add_handler(CommandHandler("keywordlinks", keywordlinks_command))
+        application.add_handler(CommandHandler("greetingfilter", greetingfilter_command))
 
         # Notes and rules commands
         application.add_handler(CommandHandler("save", save_command))

@@ -2,6 +2,34 @@
 
 All notable changes to the Telegram Admin Bot will be documented in this file.
 
+## [1.6.0] - 2026-08-27
+
+### Added - Quick replies, welcome buttons, and greeting cleanup
+- **Quick replies** (`handlers/quick_replies.py`) — admin-configured auto-replies:
+  - **Contract addresses**: `/setcontract <network> <address>` registers a CA;
+    when a member types `ca` (or `CA`/`cA`/`Ca`, "contract", "contract address")
+    the bot replies with every configured address and its network. Managed with
+    `/delcontract` and `/contracts`.
+  - **Keyword links**: `/setkeywordlink <keyword> <url> [text]` replies with an
+    inline button when a member's message contains the keyword (e.g. `website`,
+    `contact`, `proposal`). Managed with `/delkeywordlink` and `/keywordlinks`.
+  - **Greeting auto-delete**: `/greetingfilter on|off` deletes throwaway
+    greetings ("hi", "hello", "hey", ...) for non-admins.
+- **Welcome message inline buttons** (`handlers/welcome.py`):
+  - `/setwelcomebutton <label> <url>` attaches one inline link button to the
+    welcome message (also supports the legacy JSON `welcome_buttons` column).
+  - `/welcomebuttons` shows the current button, `/delwelcomebutton` removes it.
+- **Welcome auto-delete**: `/welcomedelete [seconds|on|off]` auto-deletes the
+  welcome message after the configured delay (60 seconds by default). The
+  `WelcomeSettings.can_delete_welcome` flag enables it; `delete_welcome` now
+  defaults to 60 when unset.
+- All new commands are documented in `/help` and `/commands`.
+
+### Tests
+- Added regression tests for quick-reply tables+registration, contract-address
+  lookup, keyword-link lookup, welcome button/auto-delete columns, and removed
+  dead `get_chat` code. Suite now collects 58 tests.
+
 ## [1.5.1] - 2026-08-27
 
 ### Fixed - Critical startup and correctness bugs

@@ -466,6 +466,11 @@ def main():
         test_no_chat_member_status_kicked_reference,
         test_bot_added_announcement_single_source,
         test_reports_autodelete_subcommand,
+        test_quick_replies_tables_and_commands,
+        test_contract_address_lookup,
+        test_keyword_link_lookup,
+        test_smute_command_has_no_dead_get_chat,
+        test_welcome_columns_and_commands,
     ]
     passed = 0
     for t in tests:
@@ -479,6 +484,115 @@ def main():
     print("\n" + "=" * 50)
     print(f"📊 Functional tests: {passed}/{len(tests)} passed")
     return 0 if passed == len(tests) else 1
+
+
+def test_quick_replies_tables_and_commands():
+    """Quick-reply tables exist and their command handlers are registered in bot.py."""
+    import inspect
+    from handlers.quick_replies import (
+        ContractAddress, KeywordLink, GreetingFilter,
+        setcontract_command, setkeywordlink_command, greetingfilter_command,
+        handle_quick_replies,
+    )
+    for model in (ContractAddress, KeywordLink, GreetingFilter):
+        assert model.__tablename__, f"{model.__name__} has no table name"
+    assert callable(handle_quick_replies)
+    assert callable(setcontract_command)
+    assert callable(setkeywordlink_command)
+    assert callable(greetingfilter_command)
+
+    import bot as bot_module
+    src = inspect.getsource(bot_module)
+    for cmd in ("setcontract", "setkeywordlink", "greetingfilter", "setwelcomebutton", "welcomedelete"):
+        assert cmd in src, f"Command {cmd} not registered in bot.py"
+    print("✅ quick-reply tables and commands registered")
+    return True
+
+
+def test_contract_address_lookup():
+    """handle_quick_replies must answer 'ca' with all configured contract addresses."""
+    from handlers import quick_replies as qr
+
+    update = make_update(chat_id=-100999, user_id=42)
+    update.message.text = "ca"
+    context = make_context(chat_id=-100999)
+
+    with patch.object(qr, 'get_contract_addresses', return_value=[
+        ('Arbitrum', '0xABC'),
+        ('Solana', 'xLDEF'),
+        ('TON', 'Clj...'),
+    ]), patch.object(qr.db, 'is_admin', return_value=False), \
+         patch.object(qr.db, 'is_whitelisted', return_value=False), \
+         patch.object(qr.db, 'is_approved', return_value=False), \
+         patch.object(qr, '_greeting_filter_enabled', return_value=False):
+        # Run under asyncio.
+        import asyncio
+        result = asyncio.run(qr.handle_quick_replies(update, context))
+
+    assert result is True
+    update.message.reply_text.assert_called_once()
+    text = update.message.reply_text.call_args[0][0]
+    assert 'Arbitrum' in text and 'Solana' in text and 'TON' in text
+    assert '0xABC' in text and 'xLDEF' in text and 'Clj...' in text
+    print("✅ contract-address lookup works")
+    return True
+
+
+def test_keyword_link_lookup():
+    """handle_quick_replies must respond with an inline button to a configured keyword."""
+    from handlers import quick_replies as qr
+
+    update = make_update(chat_id=-100999, user_id=42)
+    update.message.text = "Hi, do you have a website link?"
+    context = make_context(chat_id=-100999)
+
+    with patch.object(qr, 'get_contract_addresses', return_value=[]), \
+         patch.object(qr, 'get_keyword_links', return_value=[
+             ('website', 'Visit our site', 'https://example.com'),
+         ]), patch.object(qr.db, 'is_admin', return_value=False), \
+         patch.object(qr.db, 'is_whitelisted', return_value=False), \
+         patch.object(qr.db, 'is_approved', return_value=False), \
+         patch.object(qr, '_greeting_filter_enabled', return_value=False):
+        import asyncio
+        result = asyncio.run(qr.handle_quick_replies(update, context))
+
+    assert result is True
+    update.message.reply_text.assert_called_once()
+    assert update.message.reply_text.call_args[1].get('reply_markup') is not None
+    print("✅ keyword-link lookup works")
+    return True
+
+
+def test_smute_command_has_no_dead_get_chat():
+    """smute_command must not contain the dead `chat = await context.bot.get_chat(...)` call."""
+    import inspect
+    from handlers.user_management import smute_command
+    src = inspect.getsource(smute_command)
+    assert "chat = await context.bot.get_chat(chat_id)" not in src
+    print("✅ smute_command has no dead get_chat call")
+    return True
+
+
+def test_welcome_columns_and_commands():
+    """WelcomeSettings exposes button + auto-delete columns and commands exist."""
+    import inspect
+    from handlers.welcome import (
+        WelcomeSettings, setwelcomebutton_command, welcomedelete_command,
+        _build_welcome_keyboard, send_welcome_message,
+    )
+    cols = {c.name for c in WelcomeSettings.__table__.columns}
+    for col in ('welcome_button_text', 'welcome_button_url', 'can_delete_welcome'):
+        assert col in cols, f"missing column {col}"
+    assert callable(_build_welcome_keyboard)
+    assert callable(setwelcomebutton_command)
+    assert callable(welcomedelete_command)
+
+    # The sending logic must reference a default 60s auto-delete.
+    src = inspect.getsource(send_welcome_message)
+    assert "60" in src, "send_welcome_message must default to 60s auto-delete"
+    assert "can_delete_welcome" in src
+    print("✅ welcome button + auto-delete columns/commands present")
+    return True
 
 
 if __name__ == '__main__':

@@ -91,6 +91,19 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /welcome on|off - Toggle welcome messages
 /goodbye on|off - Toggle goodbye messages
 /captcha on|off - Require new members to solve a captcha
+/setwelcomebutton <label> <url> - Attach an inline link button to the welcome message
+/welcomebuttons - Show the welcome button
+/delwelcomebutton - Remove the welcome button
+/welcomedelete [seconds|on|off] - Auto-delete the welcome message (default 60s)
+
+**[Admin] Quick Replies (contract address, keyword links, greeting cleanup)**
+/setcontract <network> <address> - Add/update a contract address. Members type `ca` to see all
+/delcontract <network> - Remove a contract address
+/contracts - List configured contract addresses
+/setkeywordlink <keyword> <url> [text] - Reply with a link button when a member's message contains <keyword> (e.g. website, contact, proposal)
+/delkeywordlink <keyword> - Remove a keyword link
+/keywordlinks - List configured keyword links
+/greetingfilter on|off - Auto-delete throwaway greetings (hi, hello, hey, ...)
 
 **[Admin] Join Hider (hide system messages)**
 /cleanservice on|off - Delete all join/leave service messages
@@ -354,6 +367,13 @@ async def commands_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • `/sban` - Silent ban
 • `/skick` - Silent kick
 • `/smute` - Silent mute
+
+**Quick Replies & Welcome:**
+• `/setcontract <network> <address>` - Add a contract address (members type `ca`)
+• `/setkeywordlink <keyword> <url>` - Reply with a link button on keyword (website/contact/proposal)
+• `/setwelcomebutton <label> <url>` - Add an inline link button to the welcome message
+• `/welcomedelete <seconds>` - Auto-delete the welcome message (default 60s)
+• `/greetingfilter on` - Auto-delete "hi/hello/hey" greetings
 
 Use `/help` for the complete list with detailed descriptions.
     """
