@@ -280,7 +280,7 @@ async def addcmd_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    command = context.args[0].lower()
+    command = context.args[0].lower().lstrip('/!')
     response = ' '.join(context.args[1:])
     chat_id = update.effective_chat.id
     admin_id = update.effective_user.id
@@ -320,7 +320,7 @@ async def delcmd_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Usage: `/delcmd <command>`")
         return
     
-    command = context.args[0].lower()
+    command = context.args[0].lower().lstrip('/!')
     chat_id = update.effective_chat.id
     
     session = db.get_session()
@@ -368,6 +368,10 @@ async def handle_custom_command(update: Update, context: ContextTypes.DEFAULT_TY
         return False
     
     command = update.message.text[1:].split()[0].lower()
+    # Strip a bot-username suffix (e.g. "/hello@MyBot" -> "hello") so custom
+    # commands work when invoked with the bot's username attached.
+    if '@' in command:
+        command = command.split('@', 1)[0]
     chat_id = update.effective_chat.id
     
     session = db.get_session()

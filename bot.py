@@ -442,6 +442,15 @@ def main():
             handle_forwarded_message
         ))
 
+        # Custom command fallback (admin-configured via /addcmd): any "/command"
+        # that did not match a registered CommandHandler above is dispatched to
+        # handle_custom_command. This runs AFTER every CommandHandler so built-in
+        # commands always take precedence over user-created ones.
+        application.add_handler(MessageHandler(
+            filters.COMMAND,
+            handle_custom_command
+        ))
+
         # Chat member updates (promotions, bans, etc.)
         application.add_handler(ChatMemberHandler(
             handle_chat_member_update,

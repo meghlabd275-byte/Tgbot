@@ -114,11 +114,14 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Update cooldown
         report_cooldowns[cooldown_key] = now
         
-        # Delete the report command message
-        try:
-            await context.bot.delete_message(chat_id, update.message.message_id)
-        except:
-            pass
+        # Delete the /report command message when auto-delete is enabled
+        # (default True, mirrors Rose's behaviour of hiding report commands).
+        auto_delete = settings.auto_delete_reports if settings else True
+        if auto_delete:
+            try:
+                await context.bot.delete_message(chat_id, update.message.message_id)
+            except:
+                pass
         
         # Send report to admins
         await send_report_to_admins(context, report, reported_message, update.effective_chat, settings)
@@ -409,6 +412,29 @@ async def reports_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         finally:
             session.close()
     
+    elif len(context.args) >= 2 and context.args[0].lower() == 'autodelete':
+        status = context.args[1].lower() == 'on'
+        chat_id = update.effective_chat.id
+
+        session = db.get_session()
+        try:
+            settings = session.query(ReportSettings).filter(ReportSettings.chat_id == chat_id).first()
+
+            if settings:
+                settings.auto_delete_reports = status
+                session.commit()
+            else:
+                settings = ReportSettings(chat_id=chat_id, auto_delete_reports=status)
+                session.add(settings)
+                session.commit()
+
+            await update.message.reply_text(
+                f"✅ Auto-delete report commands {'enabled' if status else 'disabled'}."
+            )
+
+        finally:
+            session.close()
+
     elif len(context.args) >= 2 and context.args[0].lower() == 'cooldown':
         try:
             cooldown = int(context.args[1])

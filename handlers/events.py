@@ -102,13 +102,13 @@ async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAUL
         # Remove from bot admin list
         db.remove_admin(user_id, chat_id)
 
-    # Handle bans
-    elif new_status in [ChatMemberStatus.BANNED, ChatMemberStatus.KICKED]:
+    # Handle bans/kicks (Telegram reports both as ChatMemberStatus.BANNED == 'kicked')
+    elif new_status == ChatMemberStatus.BANNED:
         logger.info(f"User {user_id} was banned/kicked from chat {chat_id}")
 
     # Handle unbans
-    elif old_status in [ChatMemberStatus.BANNED, ChatMemberStatus.KICKED] and \
-         new_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED]:
+    elif old_status == ChatMemberStatus.BANNED and \
+         new_status in (ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED):
         logger.info(f"User {user_id} was unbanned in chat {chat_id}")
 
 async def handle_bot_added_to_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -116,33 +116,20 @@ async def handle_bot_added_to_chat(update: Update, context: ContextTypes.DEFAULT
     chat = update.effective_chat
     new_member = update.my_chat_member.new_chat_member if update.my_chat_member else None
 
-    # Ignore the "removed from chat" / "kicked" cases.
-    if new_member and new_member.status in (ChatMemberStatus.LEFT, ChatMemberStatus.BANNED, ChatMemberStatus.KICKED):
+    # Ignore the "removed from chat" / "kicked/banned" cases.
+    if new_member and new_member.status in (ChatMemberStatus.LEFT, ChatMemberStatus.BANNED):
         logger.info(f"Bot removed from chat {chat.id} ({chat.title})")
         return
 
     # Register the chat and sync its admins so the admin who added the bot can
-    # configure this group immediately.
+    # configure this group immediately. (The actual "I'm your new assistant bot"
+    # announcement is sent by handle_new_member_welcome, which owns the bot-added
+    # path via the NEW_CHAT_MEMBERS service message. We do NOT announce here,
+    # otherwise the bot would greet the group redundantly — and again on every
+    # MY_CHAT_MEMBER change, e.g. when it is promoted to admin.)
     db.get_or_create_chat(chat.id, chat.title)
     await sync_telegram_admins(context, chat.id)
-    welcome_msg = (
-        f"👋 **Hello! I'm your new admin assistant bot.**\n\n"
-        f"🔧 **To get started:**\n"
-        f"1. Make me an admin with necessary permissions\n"
-        f"2. Use `/activate` to register this chat\n"
-        f"3. Use `/help` to see all available commands\n\n"
-        f"🛡️ **I can help you with:**\n"
-        f"• User management (ban, kick, mute, warn)\n"
-        f"• Chat moderation (silence, purge, pin)\n"
-        f"• Admin verification and security\n"
-        f"• Whitelist and reputation systems\n\n"
-        f"📚 Use `/help` for a complete command list!"
-    )
-
-    try:
-        await context.bot.send_message(chat.id, welcome_msg, parse_mode='Markdown')
-    except Exception as e:
-        logger.error(f"Failed to send welcome message to chat {chat.id}: {e}")
+    logger.info(f"Bot added to chat {chat.id} ({chat.title}); chat registered and admins synced")
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """Handle errors"""

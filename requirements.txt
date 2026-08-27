@@ -1,4 +1,8 @@
-python-telegram-bot==20.7
+# Requires Python 3.13-compatible release: PTB 20.7/20.8 and 21.2/21.3
+# crash at Application.Builder().build() on Python 3.13 due to a __slots__
+# mismatch (AttributeError: 'Updater' object has no attribute
+# '_Updater__polling_cleanup_cb'). The regression was fixed in 21.4.
+python-telegram-bot>=21.4,<22
 sqlalchemy>=2.0.23
 aiosqlite==0.19.0
 python-dotenv==1.0.0

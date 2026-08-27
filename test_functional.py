@@ -377,6 +377,18 @@ def test_disabled_chat_model_registered():
     return True
 
 
+def test_custom_command_fallback_registered():
+    """Custom commands (/addcmd) must actually fire: bot.main must register a
+    filters.COMMAND MessageHandler that dispatches to handle_custom_command."""
+    import inspect
+    from bot import main
+    src = inspect.getsource(main)
+    assert "handle_custom_command" in src, "custom command fallback missing"
+    assert "filters.COMMAND" in src, "no filters.COMMAND handler for custom commands"
+    print("✅ custom-command fallback (filters.COMMAND -> handle_custom_command) registered")
+    return True
+
+
 def test_message_pipeline_respects_disabled_gate():
     """handle_all_messages must short-circuit when the chat is disabled."""
     import inspect
@@ -385,6 +397,41 @@ def test_message_pipeline_respects_disabled_gate():
     assert "is_chat_disabled" in src, "message pipeline missing disabled-chat gate"
     assert "Config.super_admin_ids()" in src, "disabled gate does not exempt super admin"
     print("✅ handle_all_messages gated on disabled-chat state")
+    return True
+
+
+def test_no_chat_member_status_kicked_reference():
+    """ChatMemberStatus.KICKED does not exist in python-telegram-bot; it must
+    not be referenced (Telegram reports both bans and kicks as BANNED=='kicked')."""
+    import inspect
+    from handlers import events
+    src = inspect.getsource(events)
+    assert "ChatMemberStatus.KICKED" not in src, "events.py references non-existent ChatMemberStatus.KICKED"
+    print("✅ events.py no longer references the non-existent ChatMemberStatus.KICKED")
+    return True
+
+
+def test_bot_added_announcement_single_source():
+    """The bot-added announcement must live in exactly one handler. The
+    MY_CHAT_MEMBER handler must register/sync the chat but NOT re-announce
+    (otherwise the bot greets the group twice, and again on every status change)."""
+    import inspect
+    from handlers.events import handle_bot_added_to_chat
+    ev_src = inspect.getsource(handle_bot_added_to_chat)
+    assert "sync_telegram_admins" in ev_src, "bot-add handler must still sync admins"
+    assert "send_message" not in ev_src, "MY_CHAT_MEMBER handler announces a duplicate welcome"
+    print("✅ bot-add announcement only emitted by the NEW_CHAT_MEMBERS welcome path")
+    return True
+
+
+def test_reports_autodelete_subcommand():
+    """/reports autodelete on|off must be implemented and alter ReportSettings."""
+    import inspect
+    from handlers.reports import reports_command
+    src = inspect.getsource(reports_command)
+    assert "'autodelete'" in src, "/reports autodelete subcommand missing"
+    assert "auto_delete_reports" in src, "autodelete does not persist ReportSettings.auto_delete_reports"
+    print("✅ /reports autodelete on|off implemented")
     return True
 
 
@@ -414,7 +461,11 @@ def main():
         test_super_admin_decorator_blocks_non_owner,
         test_service_controls_db_roundtrip,
         test_disabled_chat_model_registered,
+        test_custom_command_fallback_registered,
         test_message_pipeline_respects_disabled_gate,
+        test_no_chat_member_status_kicked_reference,
+        test_bot_added_announcement_single_source,
+        test_reports_autodelete_subcommand,
     ]
     passed = 0
     for t in tests:

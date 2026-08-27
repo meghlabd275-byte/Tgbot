@@ -1,7 +1,7 @@
 # Telegram Admin Bot (Tgbot) — Repository Notes
 
 ## Overview
-Complete Telegram group admin bot built with python-telegram-bot v20 + SQLAlchemy.
+Complete Telegram group admin bot built with python-telegram-bot + SQLAlchemy.
 Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
 
 ## Environment
@@ -10,13 +10,17 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
 - Run: `python bot.py` (requires BOT_TOKEN, BOT_USERNAME, SUPER_ADMIN_ID env vars / .env)
 - DB: SQLite (`bot.db`) by default, or PostgreSQL when `DATABASE_URL` is set
   to a PostgreSQL URL. 21 tables auto-created on import.
+- `python-telegram-bot>=21.4,<22` is REQUIRED. PTB 20.x (and 21.2/21.3) crash
+  at `Application.Builder().build()` on Python 3.13 with `AttributeError:
+  'Updater' object has no attribute '_Updater__polling_cleanup_cb'`. The code is
+  otherwise written against the v20 API, which 21.x remains backward-compatible with.
 
 ## Tests (all must pass)
 - `python test_bot.py` — 4 basic tests
 - `python test_advanced_bot.py` — 19 advanced tests (imports, tables, definitions)
-- `python test_functional.py` — 16 functional tests (exercises real command logic)
+- `python test_functional.py` — 29 functional tests (exercises real command logic)
 - `python test_url_remover.py` — 15 tests (URL remover, join hider, edited-message filters, hidden-hyperlink/entity detection)
-- Total: 40 tests. Run all: `python -m pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py -q`
+- Run all: `python -m pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py -q` (pytest collects 53 tests).
 
 ## Critical bugs fixed (commit 26f40a3) — patterns to watch for
 1. **`db.<Model>` must exist as DatabaseManager attributes.** Handlers do

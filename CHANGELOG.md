@@ -2,6 +2,34 @@
 
 All notable changes to the Telegram Admin Bot will be documented in this file.
 
+## [1.5.1] - 2026-08-27
+
+### Fixed - Critical startup and correctness bugs
+- **Bot could not start on Python 3.13.** `python-telegram-bot>=21.4,<22` is now
+  required; PTB 20.x/21.2/21.3 crashed at `Application.Builder().build()` with
+  `AttributeError: 'Updater' object has no attribute '_Updater__polling_cleanup_cb'`.
+- **Custom commands never fired.** `/addcmd`-defined commands were stored in the
+  DB but no fallback command handler ran for unmatched `/command` messages.
+  Added a `MessageHandler(filters.COMMAND, handle_custom_command)` after all
+  `CommandHandler`s and before the `~filters.COMMAND` text pipeline. Also made
+  `handle_custom_command` strip a bot-username suffix (`/cmd@BotName`) and made
+  `/addcmd`/`/delcmd` tolerate a leading `/` or `!`.
+- **Startup/event crash on non-existent enum.** Removed references to the
+  non-existent `ChatMemberStatus.KICKED` (Telegram reports bans and kicks both as
+  `BANNED == 'kicked'`), which raised `AttributeError` in the member-update path.
+- **Duplicate bot-added greeting.** The bot announced itself twice when added to
+  a group (once via the NEW_CHAT_MEMBERS welcome path and once via the
+  MY_CHAT_MEMBER handler). The MY_CHAT_MEMBER handler now only registers the chat
+  and syncs admins.
+- **`/reports autodelete on|off` was documented but missing.** Implemented the
+  subcommand and wired the `auto_delete_reports` setting into report-command
+  deletion (previously the command was always deleted regardless of the setting).
+
+### Tests
+- Added regression tests for each fix (custom-command fallback, KICKED removal,
+  single-source bot greeting, `/reports autodelete`). The combined suite now
+  collects 53 tests.
+
 ## [1.5.0] - 2026-08-27
 
 ### Added - Invite links, user commands, and chat statistics
