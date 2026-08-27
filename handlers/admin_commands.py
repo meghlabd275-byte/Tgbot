@@ -376,3 +376,63 @@ async def purge_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error purging messages: {e}")
         await update.message.reply_text("❌ Failed to purge messages. Make sure I have admin rights.")
+
+@is_admin_command
+@is_group_command
+async def del_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Delete the replied-to message (Rose-style /del)."""
+    if not update.message.reply_to_message:
+        await update.message.reply_text("❌ Reply to a message to delete it.")
+        return
+
+    chat_id = update.effective_chat.id
+    try:
+        await context.bot.delete_message(chat_id, update.message.reply_to_message.message_id)
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(f"Error deleting message: {e}")
+        await update.message.reply_text("❌ Failed to delete that message. Check my admin rights.")
+
+@is_admin_command
+@is_group_command
+async def spurge_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Silently purge messages between the replied message and now (Rose-style /spurge)."""
+    from config import Config
+
+    if not update.message.reply_to_message and not context.args:
+        await update.message.reply_text("❌ Reply to a message to purge from that point, or specify a number.")
+        return
+
+    chat_id = update.effective_chat.id
+    current_message_id = update.message.message_id
+
+    if context.args and context.args[0].isdigit():
+        amount = min(int(context.args[0]), Config.PURGE_LIMIT)
+        messages_to_delete = [current_message_id - i for i in range(1, amount + 1)]
+    elif update.message.reply_to_message:
+        start_id = update.message.reply_to_message.message_id
+        messages_to_delete = list(range(start_id, current_message_id))
+        if len(messages_to_delete) > Config.PURGE_LIMIT:
+            await update.message.reply_text(
+                f"❌ Too many messages to delete (max {Config.PURGE_LIMIT})."
+            )
+            return
+    else:
+        return
+
+    deleted_count = 0
+    for msg_id in messages_to_delete:
+        try:
+            await context.bot.delete_message(chat_id, msg_id)
+            deleted_count += 1
+        except Exception:
+            pass
+
+    # Also delete the command itself, and send NO confirmation (silent).
+    try:
+        await context.bot.delete_message(chat_id, current_message_id)
+    except Exception:
+        pass

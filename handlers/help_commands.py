@@ -19,6 +19,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /pin - Pin a chat message (reply to message)
 /unpin - Un-pin the last pinned message
 /purge [amount] - Delete messages (reply to start point or specify amount)
+/spurge [amount] - Silently purge messages (no confirmation)
+/del, /delete - Delete the replied-to message
 /adminlist, /admins - List the group's admins
 /warnmode [mode] - Set warning-limit action (kick/ban/mute/tban)
 

@@ -2,6 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ChatMemberStatus
 from database import db
+from utils import sync_telegram_admins
 import logging
 
 logger = logging.getLogger(__name__)
@@ -136,13 +137,19 @@ async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAUL
         logger.info(f"User {user_id} was unbanned in chat {chat_id}")
 
 async def handle_bot_added_to_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle when the bot is added to a new chat"""
+    """Handle the bot being added to (or removed from) a chat."""
     chat = update.effective_chat
-    
-    # Register the chat
+    new_member = update.my_chat_member.new_chat_member if update.my_chat_member else None
+
+    # Ignore the "removed from chat" / "kicked" cases.
+    if new_member and new_member.status in (ChatMemberStatus.LEFT, ChatMemberStatus.BANNED, ChatMemberStatus.KICKED):
+        logger.info(f"Bot removed from chat {chat.id} ({chat.title})")
+        return
+
+    # Register the chat and sync its admins so the admin who added the bot can
+    # configure this group immediately.
     db.get_or_create_chat(chat.id, chat.title)
-    
-    # Send welcome message
+    await sync_telegram_admins(context, chat.id)
     welcome_msg = (
         f"👋 **Hello! I'm your new admin assistant bot.**\n\n"
         f"🔧 **To get started:**\n"

@@ -20,7 +20,7 @@ from database import db
 from handlers.admin_commands import (
     fileid_command, activate_command, silence_command, unsilence_command,
     underattack_command, ua_command, reload_command, debug_command,
-    pin_command, unpin_command, purge_command,
+    pin_command, unpin_command, purge_command, del_command, spurge_command,
     adminlist_command, warnmode_command
 )
 
@@ -189,6 +189,9 @@ def main():
         application.add_handler(CommandHandler("pin", pin_command))
         application.add_handler(CommandHandler("unpin", unpin_command))
         application.add_handler(CommandHandler("purge", purge_command))
+        application.add_handler(CommandHandler("spurge", spurge_command))
+        application.add_handler(CommandHandler("del", del_command))
+        application.add_handler(CommandHandler("delete", del_command))
         application.add_handler(CommandHandler("adminlist", adminlist_command))
         application.add_handler(CommandHandler("admins", adminlist_command))
         application.add_handler(CommandHandler("warnmode", warnmode_command))
@@ -380,6 +383,14 @@ def main():
         application.add_handler(ChatMemberHandler(
             handle_chat_member_update,
             ChatMemberHandler.CHAT_MEMBER
+        ))
+
+        # Bot's own membership changes (added to / removed from a chat).
+        # On add, register the chat and auto-sync its admins so the admin who
+        # added the bot can immediately configure the group.
+        application.add_handler(ChatMemberHandler(
+            handle_bot_added_to_chat,
+            ChatMemberHandler.MY_CHAT_MEMBER
         ))
         
         # Callback query handlers
