@@ -246,6 +246,69 @@ def test_is_admin_logic():
     return True
 
 
+def test_federation_models_defined_once():
+    """Federation tables must only be declared in handlers.federations."""
+    import handlers.advanced_features as af
+    af_src = __import__('inspect').getsource(af)
+    assert "class Federation(" not in af_src, "duplicate Federation model still in advanced_features"
+    assert "class FederationBan(" not in af_src, "duplicate FederationBan model still in advanced_features"
+
+    from handlers.federations import Federation, FederationAdmin, FederationChat, FederationBan, FederationMute
+    from database import db
+    session = db.get_session()
+    try:
+        for model in [Federation, FederationAdmin, FederationChat, FederationBan, FederationMute]:
+            session.query(model).all()  # must not raise
+    finally:
+        session.close()
+    print("✅ Federation models defined once and queryable")
+    return True
+
+
+def test_warn_mode_roundtrip():
+    """warn_mode must persist per-chat and round-trip through get_warn_settings."""
+    from database import db
+    chat_id = -100777
+    db.get_or_create_chat(chat_id, "Warn Chat")
+    db.set_warn_mode(chat_id, 'kick')
+    settings = db.get_warn_settings(chat_id)
+    assert settings['mode'] == 'kick', f"warn_mode did not persist: {settings}"
+    db.set_warn_mode(chat_id, 'tban')
+    assert db.get_warn_settings(chat_id)['mode'] == 'tban'
+    print("✅ warn_mode persists and round-trips per chat")
+    return True
+
+
+def test_del_spurge_commands_registered():
+    """/del and /spurge must be registered and use awaited delete_message."""
+    import inspect
+    from bot import main
+    src = inspect.getsource(main)
+    assert 'CommandHandler("del", del_command)' in src, "del command not registered"
+    assert 'CommandHandler("spurge", spurge_command)' in src, "spurge command not registered"
+
+    from handlers.admin_commands import del_command, spurge_command
+    del_src = inspect.getsource(del_command)
+    assert "await context.bot.delete_message" in del_src
+    print("✅ /del and /spurge registered and use awaited delete_message")
+    return True
+
+
+def test_bot_add_auto_sync_registered():
+    """Bot's own membership handler must be registered with MY_CHAT_MEMBER."""
+    import inspect
+    from bot import main
+    src = inspect.getsource(main)
+    assert "ChatMemberHandler.MY_CHAT_MEMBER" in src, "bot membership handler not registered"
+    assert "handle_bot_added_to_chat" in src, "handle_bot_added_to_chat not referenced"
+
+    from handlers.events import handle_bot_added_to_chat
+    ev_src = inspect.getsource(handle_bot_added_to_chat)
+    assert "sync_telegram_admins" in ev_src, "bot-add does not auto-sync admins"
+    print("✅ bot-add auto-syncs admins (MY_CHAT_MEMBER handler)")
+    return True
+
+
 def main():
     tests = [
         test_db_model_attributes,
@@ -264,6 +327,10 @@ def main():
         test_backup_command_imports_models,
         test_db_query_in_handlers_runs,
         test_is_admin_logic,
+        test_federation_models_defined_once,
+        test_warn_mode_roundtrip,
+        test_del_spurge_commands_registered,
+        test_bot_add_auto_sync_registered,
     ]
     passed = 0
     for t in tests:
