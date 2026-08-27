@@ -85,6 +85,16 @@ python web_dashboard.py
 - `/id` - Get user or chat ID
 - `/chatinfo` - Get chat information
 
+### 🔰 [Admin] Approvals & Ignores
+- `/approve` - Approve a user (immune to automated actions)
+- `/unapprove` - Remove a user's approval
+- `/approval` - Check a user's approval status *
+- `/approved` - List all approved users
+- `/unapproveall` - Remove every approval in the chat
+- `/ignore` - Ignore a user's commands
+- `/unignore` - Remove a user from the ignore list
+- `/ignored` - List all ignored users
+
 ### 🌊 Anti-Spam & Flood Protection
 - `/setflood <number>` - Set flood protection limit
 - `/setfloodmode <action>` - Set flood action (mute/kick/ban)
@@ -327,10 +337,29 @@ python web_dashboard.py
 
 ### Adding to Groups
 
-1. Add the bot to your group
-2. Make the bot an admin with necessary permissions
-3. Use `/activate` to register the chat
-4. Use `/help` to see all available commands
+1. **Start the bot first** — run `python bot.py` (or deploy it). The bot must be
+   online before you add it to a group.
+
+2. **Add the bot to your group**:
+   - Open the group → tap the group name → **Administrators** → **Add Admin** →
+     search for your bot's username and add it.
+   - Or open a chat with the bot and tap **⋯ → Add to Group / Channel**.
+
+3. **Grant the necessary admin permissions**:
+   - *Change group info* (welcome/captcha/title changes)
+   - *Delete messages* (purge/delete/filters/URL removal)
+   - *Ban users* (ban/kick/mute)
+   - *Invite users via link* (`/link` and captcha)
+
+4. **Activate the group** — send `/activate` in the group (as an admin). This
+   registers the chat and auto-syncs the group's admins into the bot's cache.
+
+5. **Verify it works** — send `/help` to list every command, `/stats` to view
+   activity, and `/link` to generate your own invite link.
+
+> **Tip:** the bot auto-registers any group admin who runs an admin command, so
+> moderation works immediately. Only the bot owner (`SUPER_ADMIN_ID`) can use
+> `/disable` / `/resume` to turn all services on or off for a group.
 
 ## 🚀 Deployment Options
 

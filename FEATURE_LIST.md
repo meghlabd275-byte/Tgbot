@@ -43,6 +43,16 @@
 - ✅ `/id` - Get user or chat ID
 - ✅ `/chatinfo` - Get chat information
 
+### [Admin] Approvals & Ignores
+- ✅ `/approve` - Approve a user (immune to automated actions)
+- ✅ `/unapprove` - Remove a user's approval
+- ✅ `/approval` - Check a user's approval status *
+- ✅ `/approved` - List all approved users
+- ✅ `/unapproveall` - Remove every approval in the chat
+- ✅ `/ignore` - Ignore a user's commands
+- ✅ `/unignore` - Remove a user from the ignore list
+- ✅ `/ignored` - List all ignored users
+
 ### 🆕 Anti-Spam & Flood Protection
 - ✅ `/setflood <number>` - Set flood protection limit (messages per time window)
 - ✅ `/setfloodmode <action>` - Set flood action (mute/kick/ban)

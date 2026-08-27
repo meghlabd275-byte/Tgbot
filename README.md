@@ -92,6 +92,32 @@ LOG_LEVEL=INFO
 3. Copy the token provided
 4. Get your user ID by messaging [@userinfobot](https://t.me/userinfobot)
 
+## Getting Started — Add & Set Up the Bot in a Group
+
+1. **Start the bot** — run `python bot.py` (or deploy it). The bot must be
+   online before you add it to a group.
+
+2. **Add the bot to your group**:
+   - Open your Telegram group → tap the group name → **Administrators** → **Add
+     Admin** → search for your bot's username and add it.
+   - Or open a chat with the bot and tap **⋯ → Add to Group / Channel**.
+
+3. **Grant admin permissions** — the bot needs at least:
+   - *Change group info* (for welcome/captcha/title changes)
+   - *Delete messages* (for purge/delete/filters/URL removal)
+   - *Ban users* (for ban/kick/mute)
+   - *Invite users via link* (for `/link` and captcha)
+
+4. **Activate the group** — send `/activate` in the group (as an admin). This
+   registers the chat and auto-syncs the group's admins into the bot's cache.
+
+5. **Verify it works** — send `/help` to list every command, `/stats` to view
+   activity, and `/link` to generate your own invite link.
+
+> **Tip:** the bot auto-registers any group admin who runs an admin command, so
+> you can start moderating right away. Only the bot owner (your `SUPER_ADMIN_ID`)
+> can use `/disable` / `/resume` to turn all services on or off for a group.
+
 ## Commands
 
 ### Admin Utility Commands
@@ -114,8 +140,15 @@ LOG_LEVEL=INFO
 - `/mute` / `/unmute` - Mute management
 - `/warn` / `/unwarn` - Warning system
 - `/whitelist` / `/unwhitelist` - Whitelist management
+- `/gwhitelist` / `/gunwhitelist` - Global whitelist management
+- `/whitelisted` - List whitelisted users
+- `/checkwhitelist` - Check if a user is whitelisted
 
 ### Information Commands
+- `/help` - Complete command list
+- `/start` - Welcome message and setup guide
+- `/about` - Bot information and features
+- `/commands` - Quick command reference
 - `/user` - User information
 - `/lastactive` - Last activity check
 - `/id` - Get user/chat IDs

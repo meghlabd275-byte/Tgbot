@@ -310,7 +310,6 @@ def main():
         application.add_handler(CommandHandler("antispam", antispam_command))
         application.add_handler(CommandHandler("allowlist", allowlist_command))
         application.add_handler(CommandHandler("unallowlist", unallowlist_command))
-        application.add_handler(CommandHandler("allowslist", allowlist_command))
 
         # Welcome system commands
         application.add_handler(CommandHandler("setwelcome", setwelcome_command))

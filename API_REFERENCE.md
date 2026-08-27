@@ -212,6 +212,49 @@ Bot: 📎 File ID: AgACAgIAAxkBAAI...
 **Usage**: `/chatinfo`  
 **Permissions**: None  
 
+### Approvals & Ignores Commands
+
+#### `/approve`
+**Description**: Approve a user so they are immune to automated actions
+(flood, filters, URL removal, etc.)
+**Usage**: `/approve @username` or reply to a message
+**Permissions**: Bot admin
+
+#### `/unapprove`
+**Description**: Remove a user's approval
+**Usage**: `/unapprove @username`
+**Permissions**: Bot admin
+
+#### `/approval`
+**Description**: Check a user's approval status
+**Usage**: `/approval @username`
+**Permissions**: Bot admin
+
+#### `/approved`
+**Description**: List all approved users in the chat
+**Usage**: `/approved`
+**Permissions**: Bot admin
+
+#### `/unapproveall`
+**Description**: Remove every approval in the chat
+**Usage**: `/unapproveall`
+**Permissions**: Bot admin
+
+#### `/ignore`
+**Description**: Ignore a user's commands (bot doesn't respond to them)
+**Usage**: `/ignore @username`
+**Permissions**: Bot admin
+
+#### `/unignore`
+**Description**: Remove a user from the ignore list
+**Usage**: `/unignore @username`
+**Permissions**: Bot admin
+
+#### `/ignored`
+**Description**: List all ignored users in the chat
+**Usage**: `/ignored`
+**Permissions**: Bot admin
+
 ### Verification Commands
 
 #### `/verify`

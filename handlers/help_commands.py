@@ -57,12 +57,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /whitelist - Whitelist user so they bypass filters \*
 /gwhitelist - Globally whitelist a user \*
 /unwhitelist - Remove a user from the whitelist \*
+/gunwhitelist - Remove a user from the global whitelist \*
 /whitelisted - View a list of whitelisted users
+/checkwhitelist - Check if a user is whitelisted \*
 
 **[Admin] Approvals & Ignores**
 /approve - Approve a user (immune to automated actions)
 /unapprove - Remove approval
 /approved - View approved users
+/approval - Check a user's approval status \*
 /unapproveall - Remove all approvals
 /ignore - Ignore a user's commands
 /unignore - Remove ignore
@@ -76,6 +79,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 **General Commands**
 /help - Show this help message
 /start - Start the bot
+/about - Show bot information
+/commands - Show a quick command reference
 /id - Get user or chat ID
 /chatinfo - Get information about the current chat
 /verify - Learn about admin verification
@@ -136,6 +141,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /reporthistory - View report history
 /nightmode on|off - Toggle night mode
 /slowmode <seconds> - Set slow mode
+/setlang <code> - Set chat language (en/es/fr/de/it/pt/ru/ar/hi/zh)
 /addcmd <name> <response> - Add a custom command
 /delcmd <name> - Delete a custom command
 /listcmds - List custom commands
@@ -175,7 +181,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /link_stat, /linkstats - Show total joins per invite link (admins see all)
 
 **User Commands (admins configure, members use)**
-/usercmd add <name> <response> - Create a member-usable command (!name)
+/usercmd, /usercmds add <name> <response> - Create a member-usable command (!name)
 /usercmd del <name> - Delete a member command
 /usercmd on|off <name> - Enable/disable a member command
 /usercmd setup <name> <response> - Update a member command's response
