@@ -79,8 +79,7 @@ def _resolve_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not info:
         return None
     user_id, user_obj = info
-    if user_id is None and isinstance(user_obj, str):
-        # username (non-numeric): we cannot reliably resolve without Telegram
+    if user_id is None:
         return None
     return user_id, user_obj
 
@@ -106,11 +105,6 @@ async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     admin_id = update.effective_user.id
     reason = ' '.join(context.args[1:]) if target_id and context.args and len(context.args) > 1 else None
-    if target_id is not None and context.args and context.args[0].startswith('@') is False:
-        pass  # reason already extracted above
-
-    if context.args and context.args[0].startswith('@'):
-        reason = ' '.join(context.args[1:]) if len(context.args) > 1 else None
 
     session = db.get_session()
     try:

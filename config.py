@@ -8,30 +8,30 @@ SUPPORTED_SUPER_ADMIN_VALUE_ERROR = (
 )
 
 
-def _parse_super_admin_id():
-    """Parse SUPER_ADMIN_ID, supporting comma-separated lists and single values."""
-    raw = os.getenv('SUPER_ADMIN_ID', '')
+def _parse_super_admin_ids():
+    """Parse SUPER_ADMIN_ID into a list of owner user ids.
+
+    Supports a single value as well as comma/space separated lists. Invalid
+    entries are ignored. Returns an empty list when nothing valid is set.
+    """
+    raw = str(os.getenv('SUPER_ADMIN_ID', '')).strip()
     if not raw:
-        return 0
-    raw = str(raw).strip()
-    try:
-        return int(raw)
-    except ValueError:
-        # Support comma/space separated lists of admin ids
-        ids = [i for i in raw.replace(',', ' ').split() if i]
-        if not ids:
-            return 0
-        try:
-            return [int(i) for i in ids][0]
-        except (ValueError, IndexError):
-            return 0
+        return []
+    ids = []
+    for token in raw.replace(',', ' ').split():
+        if token.lstrip('-').isdigit():
+            ids.append(int(token))
+    return ids
 
 
 class Config:
     BOT_TOKEN = os.getenv('BOT_TOKEN')
     BOT_USERNAME = os.getenv('BOT_USERNAME')
     DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///bot.db')
-    SUPER_ADMIN_ID = _parse_super_admin_id()
+
+    # Primary super admin id (first valid entry of SUPER_ADMIN_ID).
+    _SUPER_ADMIN_IDS = _parse_super_admin_ids()
+    SUPER_ADMIN_ID = _SUPER_ADMIN_IDS[0] if _SUPER_ADMIN_IDS else 0
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
     # Bot settings (these can be overridden via environment variables)
@@ -45,12 +45,10 @@ class Config:
     @classmethod
     def super_admin_ids(cls):
         """Return the set of super-admin (bot owner) user ids."""
-        ids = set()
-        if cls.SUPER_ADMIN_ID:
-            ids.add(int(cls.SUPER_ADMIN_ID))
+        ids = set(cls._SUPER_ADMIN_IDS)
         for raw in str(cls._EXTRA_SUPER_ADMINS).replace(',', ' ').split():
             raw = raw.strip()
-            if raw.isdigit():
+            if raw.lstrip('-').isdigit():
                 ids.add(int(raw))
         return ids
 

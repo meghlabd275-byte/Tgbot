@@ -485,6 +485,8 @@ async def handle_cleanup_confirmation(update: Update, context: ContextTypes.DEFA
     )
 
 
+@is_admin_command
+@is_group_command
 async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Backup chat settings as a real, importable JSON document.
 

@@ -101,11 +101,25 @@ def get_user_from_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             user_id = int(arg)
             return user_id, None
         
-        # Check if it's a username (starts with @)
+        # Resolve a bare @username against the bot's local user directory.
+        # Telegram's Bot API offers no username->id lookup for private users,
+        # so we fall back to the users we have previously seen in any chat.
         if arg.startswith('@'):
-            username = arg[1:]  # Remove @
-            # Try to get user from chat members (limited functionality)
-            return None, username
+            username = arg.lstrip('@').lower()
+            try:
+                from database import db
+                session = db.get_session()
+                try:
+                    row = session.query(db.User).filter(
+                        db.User.username.ilike(username)
+                    ).first()
+                    if row is not None:
+                        return row.id, row
+                finally:
+                    session.close()
+            except Exception:
+                pass
+            return None
     
     return None
 

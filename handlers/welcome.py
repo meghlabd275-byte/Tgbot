@@ -125,6 +125,8 @@ async def setwelcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     finally:
         session.close()
 
+@is_admin_command
+@is_group_command
 async def setgoodbye_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Set goodbye message"""
     if not context.args:
