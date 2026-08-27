@@ -120,7 +120,7 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         
         # Send report to admins
-        await send_report_to_admins(context, report, reported_message, update.effective_chat)
+        await send_report_to_admins(context, report, reported_message, update.effective_chat, settings)
         
         # Send confirmation to reporter
         try:
@@ -137,10 +137,17 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         session.close()
 
-async def send_report_to_admins(context: ContextTypes.DEFAULT_TYPE, report: Report, reported_message, chat):
+async def send_report_to_admins(context: ContextTypes.DEFAULT_TYPE, report: Report, reported_message, chat, settings=None):
     """Send report notification to admins"""
     session = db.get_session()
     try:
+        # Resolve settings if not passed (e.g. from other call paths).
+        if settings is None:
+            settings = session.query(ReportSettings).filter(
+                ReportSettings.chat_id == report.chat_id
+            ).first()
+        admin_only = bool(settings and settings.admin_only)
+
         # Get all admins
         admins = session.query(db.Admin).filter(db.Admin.chat_id == report.chat_id).all()
         
@@ -175,16 +182,18 @@ async def send_report_to_admins(context: ContextTypes.DEFAULT_TYPE, report: Repo
             ]
         ])
         
-        # Send to chat (visible to all admins)
-        try:
-            await context.bot.send_message(
-                report.chat_id,
-                report_text,
-                parse_mode='Markdown',
-                reply_markup=keyboard
-            )
-        except Exception as e:
-            logger.error(f"Error sending report to chat: {e}")
+        # Send to chat (visible to all admins) unless admin_only mode.
+        # In admin_only mode reports go only to admins' private chats.
+        if not admin_only:
+            try:
+                await context.bot.send_message(
+                    report.chat_id,
+                    report_text,
+                    parse_mode='Markdown',
+                    reply_markup=keyboard
+                )
+            except Exception as e:
+                logger.error(f"Error sending report to chat: {e}")
         
         # Also send to individual admins in private
         for admin in admins:

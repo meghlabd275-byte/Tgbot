@@ -131,6 +131,14 @@ def is_admin_command(func):
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
 
+        # Resolve the target chat for private-chat connections: an admin who
+        # connected their PM to a group can run admin commands from there.
+        try:
+            from handlers.connections import get_effective_chat_id
+            chat_id = get_effective_chat_id(update, context)
+        except Exception:
+            chat_id = update.effective_chat.id
+
         # Owner kill-switch: if this group's services are disabled, block every
         # admin command for group admins. Only the bot owner (super admin) can
         # still act (e.g. /resume from inside the disabled group).
@@ -158,15 +166,25 @@ def is_admin_command(func):
     return wrapper
 
 def is_group_command(func):
-    """Decorator to ensure command is used in a group"""
+    """Decorator to ensure command is used in a group (or via a private-chat
+    connection to a group)."""
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_chat.type == 'private':
-            await update.message.reply_text("❌ This command can only be used in groups.")
-            return
-        
+            try:
+                from handlers.connections import get_connection
+                if not get_connection(update.effective_user.id):
+                    await update.message.reply_text(
+                        "❌ This command can only be used in groups.\n"
+                        "Connect to a group first with `/connect <chat>`."
+                    )
+                    return
+            except Exception:
+                await update.message.reply_text("❌ This command can only be used in groups.")
+                return
+
         return await func(update, context)
-    
+
     return wrapper
 
 def is_super_admin_command(func):

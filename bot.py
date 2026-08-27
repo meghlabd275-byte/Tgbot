@@ -96,7 +96,8 @@ from handlers.reports import (
 from handlers.advanced_features import (
     setlang_command, nightmode_command, slowmode_command,
     addcmd_command, delcmd_command, listcmds_command, cleanup_command,
-    backup_command, handle_custom_command, check_night_mode
+    backup_command, handle_custom_command, check_night_mode,
+    handle_cleanup_confirmation, check_slow_mode
 )
 
 from handlers.federations import (
@@ -154,6 +155,15 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         if await check_flood(update, context):
             return
         
+        # Enforce slow mode (deletes too-fast messages, admins/whitelist exempt)
+        if await check_slow_mode(update, context):
+            return
+        
+        # Ignored users: the bot takes no automated action against them.
+        from handlers.approvals import is_ignored
+        if update.effective_user and is_ignored(update.effective_user.id, chat_id):
+            return
+        
         # Check message filters (word filters, URL filters, media filters, spam)
         if await check_message_filters(update, context):
             return
@@ -169,6 +179,9 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Check for custom commands
         if await handle_custom_command(update, context):
             return
+
+        # Handle cleanup CONFIRM reply (staged by /cleanup)
+        await handle_cleanup_confirmation(update, context)
         
         # Regular message handling
         await handle_message(update, context)
@@ -423,6 +436,10 @@ def main():
         application.add_handler(CallbackQueryHandler(
             handle_report_callback, 
             pattern=r"^report_"
+        ))
+        application.add_handler(CallbackQueryHandler(
+            handle_connect_callback,
+            pattern=r"^connect_"
         ))
         
         # General message handler (should be last)

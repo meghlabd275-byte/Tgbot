@@ -50,10 +50,29 @@ def update_welcome_database():
 @is_admin_command
 @is_group_command
 async def setwelcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Set welcome message"""
-    if not context.args:
+    """Set welcome message (optionally with media by replying to a media message)"""
+    chat_id = update.effective_chat.id
+
+    # Detect a replied media message to attach to the welcome.
+    welcome_media = None
+    media_type = None
+    if update.message.reply_to_message:
+        rep = update.message.reply_to_message
+        if rep.photo:
+            welcome_media = rep.photo[-1].file_id
+            media_type = 'photo'
+        elif rep.video:
+            welcome_media = rep.video.file_id
+            media_type = 'video'
+        elif rep.animation:
+            welcome_media = rep.animation.file_id
+            media_type = 'animation'
+
+    # Allow "/setwelcome" with a media reply and no caption.
+    if not context.args and not welcome_media:
         await update.message.reply_text(
-            "❌ Usage: `/setwelcome <message>`\n\n"
+            "❌ Usage: `/setwelcome <message>`\n"
+            "Reply to a photo/video/GIF and use `/setwelcome <caption>` to attach media.\n\n"
             "**Variables you can use:**\n"
             "• `{first}` - User's first name\n"
             "• `{last}` - User's last name\n"
@@ -68,37 +87,44 @@ async def setwelcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             parse_mode='Markdown'
         )
         return
-    
-    welcome_text = ' '.join(context.args)
-    chat_id = update.effective_chat.id
-    
+
+    welcome_text = ' '.join(context.args) if context.args else None
+    if not welcome_text and not welcome_media:
+        await update.message.reply_text("❌ Provide a message and/or reply to a media message.")
+        return
+
     session = db.get_session()
     try:
         settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
-        
+
         if settings:
-            settings.welcome_message = welcome_text
+            if welcome_text:
+                settings.welcome_message = welcome_text
+            if welcome_media:
+                settings.welcome_media = welcome_media
+                settings.media_type = media_type
             settings.welcome_enabled = True
             session.commit()
         else:
             settings = WelcomeSettings(
                 chat_id=chat_id,
                 welcome_message=welcome_text,
+                welcome_media=welcome_media,
+                media_type=media_type,
                 welcome_enabled=True
             )
             session.add(settings)
             session.commit()
-        
+
+        preview = format_welcome_message(welcome_text or "", update.effective_user, update.effective_chat)
         await update.message.reply_text(
-            f"✅ Welcome message set!\n\n**Preview:**\n{format_welcome_message(welcome_text, update.effective_user, update.effective_chat)}",
+            f"✅ Welcome message set!\n\n**Preview:**\n{preview or '(media only)'}",
             parse_mode='Markdown'
         )
-    
+
     finally:
         session.close()
 
-@is_admin_command
-@is_group_command
 async def setgoodbye_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Set goodbye message"""
     if not context.args:
@@ -595,14 +621,25 @@ async def send_welcome_message(update: Update, context: ContextTypes.DEFAULT_TYP
     """Send welcome message to new user"""
     chat = update.effective_chat
     
-    welcome_text = format_welcome_message(settings.welcome_message, user, chat)
+    member_count = await _get_member_count(context, chat.id)
+    welcome_text = format_welcome_message(settings.welcome_message or '', user, chat, member_count)
     
     try:
-        welcome_msg = await context.bot.send_message(
-            chat.id,
-            welcome_text,
-            parse_mode='Markdown'
-        )
+        # If media is attached, send the media with the welcome text as caption.
+        if settings.welcome_media:
+            kwargs = {'chat_id': chat.id, 'caption': welcome_text, 'parse_mode': 'Markdown'}
+            if settings.media_type == 'photo':
+                welcome_msg = await context.bot.send_photo(settings.welcome_media, **kwargs)
+            elif settings.media_type == 'video':
+                welcome_msg = await context.bot.send_video(settings.welcome_media, **kwargs)
+            else:
+                welcome_msg = await context.bot.send_animation(settings.welcome_media, **kwargs)
+        else:
+            welcome_msg = await context.bot.send_message(
+                chat.id,
+                welcome_text,
+                parse_mode='Markdown'
+            )
         
         # Delete welcome message after specified time
         if settings.delete_welcome > 0:
@@ -648,7 +685,8 @@ async def handle_left_member_goodbye(update: Update, context: ContextTypes.DEFAU
         
         # Send goodbye message
         if settings.goodbye_enabled and settings.goodbye_message:
-            goodbye_text = format_welcome_message(settings.goodbye_message, left_member, update.effective_chat)
+            member_count = await _get_member_count(context, chat_id)
+            goodbye_text = format_welcome_message(settings.goodbye_message, left_member, update.effective_chat, member_count)
             
             try:
                 await context.bot.send_message(
@@ -662,17 +700,24 @@ async def handle_left_member_goodbye(update: Update, context: ContextTypes.DEFAU
     finally:
         session.close()
 
-def format_welcome_message(template: str, user, chat) -> str:
+async def _get_member_count(context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> int:
+    """Return the live member count for a chat (0 if unavailable)."""
+    try:
+        return await context.bot.get_chat_member_count(chat_id)
+    except Exception:
+        return 0
+
+
+def format_welcome_message(template: str, user, chat, member_count: int = None) -> str:
     """Format welcome message with variables"""
     if not template:
         return ""
-    
-    # Get member count
-    try:
-        member_count = "many"  # We'll implement this properly
-    except:
-        member_count = "many"
-    
+
+    # Use the provided member count, falling back to 0 when unknown. The async
+    # call sites fetch the real count via get_chat_member_count.
+    if member_count is None:
+        member_count = 0
+
     replacements = {
         '{first}': user.first_name or '',
         '{last}': user.last_name or '',
@@ -683,11 +728,11 @@ def format_welcome_message(template: str, user, chat) -> str:
         '{chatname}': chat.title or 'this chat',
         '{count}': str(member_count)
     }
-    
+
     formatted = template
     for placeholder, value in replacements.items():
         formatted = formatted.replace(placeholder, value)
-    
+
     return formatted
 
 # Handle captcha button callbacks
@@ -740,7 +785,8 @@ async def handle_captcha_callback(update: Update, context: ContextTypes.DEFAULT_
                 # Send welcome message now
                 settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
                 if settings and settings.welcome_enabled and settings.welcome_message:
-                    welcome_text = format_welcome_message(settings.welcome_message, query.from_user, query.message.chat)
+                    member_count = await _get_member_count(context, chat_id)
+                    welcome_text = format_welcome_message(settings.welcome_message, query.from_user, query.message.chat, member_count)
                     await context.bot.send_message(chat_id, welcome_text, parse_mode='Markdown')
             
             finally:

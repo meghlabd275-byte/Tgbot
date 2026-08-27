@@ -48,6 +48,9 @@ def update_advanced_database():
 # Night mode tracking
 night_mode_restrictions = {}
 
+# Slow-mode tracking: chat_id -> {user_id: last_message_datetime}
+slow_mode_tracker = {}
+
 @is_admin_command
 @is_group_command
 async def setlang_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -428,46 +431,196 @@ async def cleanup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Store cleanup data for confirmation
         context.user_data['cleanup_users'] = [user.id for user in inactive_users]
         context.user_data['cleanup_days'] = days
+        context.user_data['cleanup_chat_id'] = chat_id
     
     finally:
         session.close()
+
+
+async def handle_cleanup_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle the 'CONFIRM' reply for /cleanup and actually kick the inactive
+    users whose IDs were staged in user_data by cleanup_command.
+    """
+    message = update.message
+    if not message or not message.text:
+        return
+
+    text = message.text.strip().upper()
+    if text != 'CONFIRM':
+        return
+
+    chat_id = context.user_data.get('cleanup_chat_id')
+    user_ids = context.user_data.get('cleanup_users')
+
+    if not chat_id or not user_ids:
+        await message.reply_text("ℹ️ No pending cleanup to confirm. Use `/cleanup <days>` first.")
+        return
+
+    # Verify the confirmer is an admin of the target chat.
+    if not db.is_admin(update.effective_user.id, chat_id):
+        await message.reply_text("❌ You need to be an admin to confirm cleanup.")
+        return
+
+    kicked = 0
+    failed = 0
+    for uid in user_ids:
+        try:
+            await context.bot.ban_chat_member(chat_id, uid)
+            await context.bot.unban_chat_member(chat_id, uid)
+            kicked += 1
+        except Exception:
+            failed += 1
+
+    # Clear the staged cleanup so it cannot be triggered twice.
+    context.user_data.pop('cleanup_users', None)
+    context.user_data.pop('cleanup_chat_id', None)
+    context.user_data.pop('cleanup_days', None)
+
+    await message.reply_text(
+        f"🧹 **Cleanup complete**\n\n"
+        f"• Kicked: {kicked}\n"
+        f"• Failed: {failed}",
+        parse_mode='Markdown',
+    )
+
 
 async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Backup chat settings"""
-    from handlers.notes import Note
-    from handlers.filters import WordFilter
+    """Backup chat settings as a real, importable JSON document.
+
+    Produces a JSON file containing every per-chat setting the bot stores
+    (notes, rules, filters, locks, allowlisted domains, welcome/goodbye
+    settings, custom commands, admin IDs, warn mode, flood and raid settings)
+    and sends it to the admin who requested it.
+    """
+    import json
+    import io
+    from handlers.notes import Note, Rule
+    from handlers.filters import WordFilter, URLFilter, MediaFilter, URLAllowlist
+    from handlers.welcome import WelcomeSettings
+    from handlers.advanced_features import ChatSettings, CustomCommand
+    from handlers.antiflood import get_flood_settings, get_raid_settings
 
     chat_id = update.effective_chat.id
-    
-    # This would generate a backup file with all chat settings
-    # For now, just show what would be backed up
-    
+
     session = db.get_session()
     try:
-        # Count various settings
-        notes_count = session.query(Note).filter(Note.chat_id == chat_id).count()
-        filters_count = session.query(WordFilter).filter(WordFilter.chat_id == chat_id).count()
-        admins_count = session.query(db.Admin).filter(db.Admin.chat_id == chat_id).count()
-        
-        backup_info = f"""💾 **Backup Information**
-
-**Chat ID:** `{chat_id}`
-**Backup Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-**Data to backup:**
-• Notes: {notes_count}
-• Word Filters: {filters_count}
-• Bot Admins: {admins_count}
-• Welcome/Goodbye Settings
-• Chat Settings
-• Reports History
-
-**Note:** Full backup/restore functionality coming soon!"""
-        
-        await update.message.reply_text(backup_info, parse_mode='Markdown')
-    
+        notes = [
+            {'name': n.name, 'content': n.content, 'file_id': n.file_id, 'file_type': n.file_type}
+            for n in session.query(Note).filter(Note.chat_id == chat_id).order_by(Note.name).all()
+        ]
+        rules = session.query(Rule).filter(Rule.chat_id == chat_id).first()
+        word_filters = [
+            {'word': f.word, 'action': f.action, 'is_regex': f.is_regex}
+            for f in session.query(WordFilter).filter(WordFilter.chat_id == chat_id).all()
+        ]
+        url_filters = [
+            {'domain': f.domain, 'action': f.action, 'is_whitelist': f.is_whitelist}
+            for f in session.query(URLFilter).filter(URLFilter.chat_id == chat_id).all()
+        ]
+        media_filters = [
+            {'media_type': f.media_type, 'is_locked': f.is_locked}
+            for f in session.query(MediaFilter).filter(MediaFilter.chat_id == chat_id).all()
+        ]
+        allowlisted_domains = [
+            r.domain for r in session.query(URLAllowlist).filter(URLAllowlist.chat_id == chat_id).all()
+        ]
+        welcome = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
+        chat_settings = session.query(ChatSettings).filter(ChatSettings.chat_id == chat_id).first()
+        custom_commands = [
+            {'command': c.command, 'response': c.response}
+            for c in session.query(CustomCommand).filter(CustomCommand.chat_id == chat_id).all()
+        ]
+        admin_ids = [a.user_id for a in db.get_chat_admins(chat_id)]
+        warn_settings = db.get_warn_settings(chat_id)
+        flood_settings = get_flood_settings(chat_id)
+        raid_settings = get_raid_settings(chat_id)
     finally:
         session.close()
+
+    def _welcome_dict(w):
+        if not w:
+            return None
+        return {
+            'welcome_enabled': w.welcome_enabled,
+            'welcome_message': w.welcome_message,
+            'welcome_media': w.welcome_media,
+            'media_type': w.media_type,
+            'delete_welcome': w.delete_welcome,
+            'goodbye_enabled': w.goodbye_enabled,
+            'goodbye_message': w.goodbye_message,
+            'delete_joined_msg': w.delete_joined_msg,
+            'delete_left_msg': w.delete_left_msg,
+            'delete_all_system_msg': w.delete_all_system_msg,
+            'delete_service': w.delete_service,
+            'captcha_enabled': w.captcha_enabled,
+            'captcha_time': w.captcha_time,
+        }
+
+    def _chat_settings_dict(c):
+        if not c:
+            return None
+        return {
+            'language': c.language,
+            'timezone': c.timezone,
+            'night_mode_enabled': c.night_mode_enabled,
+            'night_mode_start': c.night_mode_start,
+            'night_mode_end': c.night_mode_end,
+            'slow_mode_enabled': c.slow_mode_enabled,
+            'slow_mode_delay': c.slow_mode_delay,
+            'antispam_enabled': c.antispam_enabled,
+        }
+
+    backup = {
+        'bot': 'telegram-admin-bot',
+        'backup_version': 1,
+        'chat_id': chat_id,
+        'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'warn_settings': warn_settings,
+        'flood_settings': flood_settings,
+        'raid_settings': raid_settings,
+        'admins': admin_ids,
+        'notes': notes,
+        'rules': rules.content if rules else None,
+        'word_filters': word_filters,
+        'url_filters': url_filters,
+        'media_filters': media_filters,
+        'allowlisted_domains': allowlisted_domains,
+        'welcome_settings': _welcome_dict(welcome),
+        'chat_settings': _chat_settings_dict(chat_settings),
+        'custom_commands': custom_commands,
+    }
+
+    payload = json.dumps(backup, ensure_ascii=False, indent=2, default=str)
+    filename = f"backup_{chat_id}.json"
+    document = io.BytesIO(payload.encode('utf-8'))
+    document.name = filename
+
+    summary = (
+        f"💾 **Backup generated**\n\n"
+        f"• Notes: {len(notes)}\n"
+        f"• Word filters: {len(word_filters)}\n"
+        f"• Media locks: {len(media_filters)}\n"
+        f"• Custom commands: {len(custom_commands)}\n"
+        f"• Admins: {len(admin_ids)}\n"
+        f"• Rules: {'✅' if rules else '❌'}\n"
+        f"• Welcome settings: {'✅' if welcome else '❌'}"
+    )
+
+    try:
+        await context.bot.send_document(
+            chat_id,
+            document=document,
+            filename=filename,
+            caption=summary,
+        )
+    except Exception as e:
+        logger.error(f"Backup send failed: {e}")
+        await update.message.reply_text(
+            f"💾 **Backup generated**\n\n```\n{payload}\n```",
+            parse_mode='Markdown',
+        )
+
 
 async def check_night_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Check if night mode restrictions apply"""
@@ -528,6 +681,47 @@ async def check_night_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         session.close()
     
     return False
+
+
+async def check_slow_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    Enforce slow mode for a chat. Returns True (and deletes the message) if the
+    user sent another message before the configured delay elapsed. Admins and
+    whitelisted users are exempt.
+    """
+    message = update.message or update.edited_message
+    if not message or not update.effective_user:
+        return False
+
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+
+    if db.is_admin(user_id, chat_id) or db.is_whitelisted(user_id, chat_id):
+        return False
+
+    session = db.get_session()
+    try:
+        settings = session.query(ChatSettings).filter(ChatSettings.chat_id == chat_id).first()
+        if not settings or not settings.slow_mode_enabled:
+            return False
+        delay = settings.slow_mode_delay or 30
+    finally:
+        session.close()
+
+    now = datetime.now()
+    per_chat = slow_mode_tracker.setdefault(chat_id, {})
+    last = per_chat.get(user_id)
+
+    if last is not None and (now - last).total_seconds() < delay:
+        try:
+            await context.bot.delete_message(chat_id, message.message_id)
+        except Exception:
+            pass
+        return True
+
+    per_chat[user_id] = now
+    return False
+
 
 # Initialize database
 update_advanced_database()
