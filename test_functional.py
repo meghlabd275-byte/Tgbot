@@ -281,8 +281,8 @@ def test_warn_mode_roundtrip():
 def test_del_spurge_commands_registered():
     """/del and /spurge must be registered and use awaited delete_message."""
     import inspect
-    from bot import main
-    src = inspect.getsource(main)
+    from bot import _register_handlers
+    src = inspect.getsource(_register_handlers)
     assert 'CommandHandler("del", del_command)' in src, "del command not registered"
     assert 'CommandHandler("spurge", spurge_command)' in src, "spurge command not registered"
 
@@ -296,8 +296,8 @@ def test_del_spurge_commands_registered():
 def test_bot_add_auto_sync_registered():
     """Bot's own membership handler must be registered with MY_CHAT_MEMBER."""
     import inspect
-    from bot import main
-    src = inspect.getsource(main)
+    from bot import _register_handlers
+    src = inspect.getsource(_register_handlers)
     assert "ChatMemberHandler.MY_CHAT_MEMBER" in src, "bot membership handler not registered"
     assert "handle_bot_added_to_chat" in src, "handle_bot_added_to_chat not referenced"
 
@@ -309,10 +309,10 @@ def test_bot_add_auto_sync_registered():
 
 
 def test_service_controls_registered():
-    """/disable, /resume and /disabledgroups must be registered in bot.main."""
+    """/disable, /resume and /disabledgroups must be registered in bot."""
     import inspect
-    from bot import main
-    src = inspect.getsource(main)
+    from bot import _register_handlers
+    src = inspect.getsource(_register_handlers)
     assert 'CommandHandler("disable", disable_command)' in src, "/disable not registered"
     assert 'CommandHandler("resume", resume_command)' in src, "/resume not registered"
     assert 'CommandHandler("disabledgroups", disabledgroups_command)' in src, "/disabledgroups not registered"
@@ -381,8 +381,8 @@ def test_custom_command_fallback_registered():
     """Custom commands (/addcmd) must actually fire: bot.main must register a
     filters.COMMAND MessageHandler that dispatches to handle_custom_command."""
     import inspect
-    from bot import main
-    src = inspect.getsource(main)
+    from bot import _register_handlers
+    src = inspect.getsource(_register_handlers)
     assert "handle_custom_command" in src, "custom command fallback missing"
     assert "filters.COMMAND" in src, "no filters.COMMAND handler for custom commands"
     print("✅ custom-command fallback (filters.COMMAND -> handle_custom_command) registered")

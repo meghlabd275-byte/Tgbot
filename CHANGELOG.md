@@ -2,6 +2,37 @@
 
 All notable changes to the Telegram Admin Bot will be documented in this file.
 
+## [1.7.0] - 2026-08-27
+
+### Added - Live clone bots (owner fleet)
+- **Fleet registry** (`database.py`) — `BotInstance` table stores every cloned
+  bot (token, username, bot id, status `active|paused|disabled`); `GroupMembership`
+  table stores every group each fleet bot is in. New CRUD methods:
+  `register_bot_instance`, `get_bot_instances`, `get_bot_instance_by_id/token`,
+  `update_bot_instance`, `set_bot_status`, `delete_bot_instance`,
+  `count_bot_instances`, `record_group_membership`, `record_fleet_membership`,
+  `remove_group_membership`, `remove_fleet_membership`, `get_fleet_groups`,
+  `get_groups_for_bot`.
+- **Clone supervisor** (`handlers/clonebot.py`) — each clone runs the exact same
+  handler pipeline as the main bot inside a dedicated thread with its own asyncio
+  event loop (Python 3.13 compatible). `start_clone_supervisor()` auto-starts
+  every `active` clone at boot. Lifecycle controls: `start_clone`, `stop_clone`,
+  `set_clone_status` (start/stop/pause/resume/enable/disable), all fully
+  implemented and tested. Invalid/revoked tokens are marked `disabled`.
+- **Owner fleet commands** (`handlers/owner.py`):
+  - `/groups` — list every Telegram group using the fleet with days of usage.
+  - `/clone` — interactive live-clone registration (bot token + username only,
+    no deployment). Validates via `getMe`, starts the clone immediately and
+    re-syncs group memberships fleet-wide.
+  - `/clone_bots` — list all clone bots with live status.
+  - `/bot <start|stop|pause|resume|enable|disable|status> <id|@username>` — manage clones.
+  - `/botdel <id|@username>` — permanently remove a clone.
+  - `/commands` now also shows the full super-admin documentation to the owner.
+- **Fleet membership tracking** (`handlers/events.py` and `handlers/owner.py`) —
+  when a fleet bot (main or clone) is added to a group, every known bot in the
+  fleet is recorded as serving that group; removals clean up the registry.
+  All enrichment is driven by the owner's Telegram commands (no external dashboard).
+
 ## [1.6.0] - 2026-08-27
 
 ### Added - Quick replies, welcome buttons, and greeting cleanup

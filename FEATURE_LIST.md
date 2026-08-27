@@ -2,6 +2,14 @@
 
 ## 📋 All Implemented Features
 
+
+### [Owner] Live Clone Fleet (super admin only)
+- ✅ `/clone` - Register a live clone bot from just a bot token + username (no deployment)
+- ✅ `/clone_bots` - List all clone bots with live status
+- ✅ `/bot start|stop|pause|resume|enable|disable|status <id|@username>` - Manage clones
+- ✅ `/botdel <id|@username>` - Permanently remove a clone
+- ✅ `/groups` - List every group using the fleet with days of usage
+
 ### [Admin] Utility Commands
 - ✅ `/fileid` - Get File ID of media messages
 

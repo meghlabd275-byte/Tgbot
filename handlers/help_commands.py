@@ -340,7 +340,7 @@ This bot only stores necessary moderation data and respects user privacy.
     await update.message.reply_text(about_text.strip(), parse_mode='Markdown')
 
 async def commands_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show a quick command reference"""
+    """Show a quick command reference (owner sees the full super-admin docs too)"""
     commands_text = """
 ⚡ **Quick Command Reference**
 
@@ -379,3 +379,15 @@ Use `/help` for the complete list with detailed descriptions.
     """
 
     await update.message.reply_text(commands_text.strip(), parse_mode='Markdown')
+
+    # Super-admin commands are appended for the owner only.
+    user_id = update.effective_user.id
+    from config import Config
+    if user_id in Config.super_admin_ids():
+        try:
+            from handlers.owner import _super_admin_commands_doc
+            await update.message.reply_text(
+                _super_admin_commands_doc(), parse_mode='Markdown'
+            )
+        except Exception:
+            pass

@@ -150,5 +150,51 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
   `handle_service_message` (early return when `db.is_chat_disabled`).
 - Tests: `test_functional.py` covers service-control registration, decorator
   access control, DB round-trip, DisabledChat queryability, and the message gate.
-- 58 tests total (`pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py`).
+
+## Live clone bots (owner fleet)
+- `database.py` — `BotInstance` (`bot_instances`: token unique, username, bot_id,
+  display_name, status `active|paused|disabled`, created_by/at, updated_at) and
+  `GroupMembership` (`group_memberships`: unique (bot_id, chat_id), chat_title,
+  joined_at). Methods: `register_bot_instance` (rejects the main token),
+  `get_bot_instances(only_known)` (when False includes the main bot as a
+  synthetic id=0 row), `get_bot_instance_by_id/token`, `update_bot_instance`,
+  `set_bot_status`, `delete_bot_instance` (also drops its memberships),
+  `count_bot_instances`, `record_group_membership`, `record_fleet_membership`
+  (records a chat for the main bot + every clone), `remove_group_membership`,
+  `remove_fleet_membership`, `get_fleet_groups` (distinct groups + bot_ids +
+  earliest joined_at), `get_groups_for_bot`.
+- `handlers/clonebot.py` — clone supervisor. Each clone runs in a dedicated
+  daemon thread with its OWN asyncio event loop (`asyncio.new_event_loop` +
+  `set_event_loop`; Python 3.13 does not auto-create one in non-main threads).
+  `build_application(token=..., start_clones=False)` + `app.run_polling(...,
+  close_loop=False, stop_signals=None)`. `stop_signals=None` is REQUIRED — signal
+  handlers (add_signal_handler/set_wakeup_fd) only work in the main thread.
+  Lifecycle: `start_clone(id)`, `stop_clone(id, mark)` sets a `threading.Event`
+  that a periodic in-loop `_wait_stop_signal` polls (0.5s) and calls
+  `app.stop_running()`. `set_clone_status(id, start|stop|pause|resume|enable|
+  disable)` returns `(ok, msg)`. A token rejected by Telegram leaves the status
+  as `disabled`. `start_clone_supervisor()` is non-reentrant and auto-starts all
+  `active` clones at boot (called from `build_application`/`main`).
+- `handlers/owner.py` — owner-only fleet commands:
+  `/groups` (fleet-wide group usage with days), `/clone` (ConversationHandler:
+  token → validate via `bot.get_me()` → username; starts the clone immediately
+  and re-syncs every fleet membership so the new clone sees all groups),
+  `/clone_bots`, `/bot <action> <id|@username>` (start/stop/pause/resume/enable/
+  disable/status), `/botdel`. `_super_admin_commands_doc()` is injected into
+  `/commands` for the owner. Guarded by `@is_super_admin_command` (except the
+  ConversationHandler entry which enforces owner + private chat itself).
+- `handlers/events.py` — `handle_bot_added_to_chat` (MY_CHAT_MEMBER) now records
+  fleet membership via `db.record_fleet_membership(...)` on bot-add and removes
+  it via `db.remove_fleet_membership(...)` on kick/leave. Every fleet bot (main
+  and clone) reports into the shared registry, so `/groups` is fleet-wide.
+- `config.py` — `Config.configure_bot_environment(token, username)` sets
+  `current_token`/`current_username` per clone thread. `Config.BOT_TOKEN` stays
+  the env value (used to reject cloning the main bot). Handlers read owner ids
+  from `super_admin_ids()` (shared process-wide).
+- Tests: `test_clonebot.py` (registry/membership CRUD, owner doc completeness,
+  supervisor lifecycle with mocked `run_polling`).
+- 69 tests total (`pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py test_clonebot.py`).
+  NOTE: the source-inspection tests in `test_functional.py` inspect
+  `bot._register_handlers` (NOT `bot.main`) for handler registrations because
+  registration now lives in the extracted function.
 

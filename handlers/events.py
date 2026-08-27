@@ -1,9 +1,11 @@
+import logging
+
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ChatMemberStatus
+from config import Config
 from database import db
 from utils import sync_telegram_admins
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -113,14 +115,47 @@ async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAUL
          new_status in (ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED):
         logger.info(f"User {user_id} was unbanned in chat {chat_id}")
 
+async def _fleet_bot_id(context) -> int:
+    """Return the fleet id for the current application.
+
+    The main bot is always identified as ``0``. A clone is identified by its
+    Telegram numeric bot id (matching its BotInstance.bot_id).
+    """
+    try:
+        token = getattr(context.bot, 'token', None) or Config.BOT_TOKEN
+        if token == Config.BOT_TOKEN:
+            return 0
+        # Clone: resolve its numeric id via getMe (best effort).
+        me = await context.bot.get_me()
+        return me.id
+    except Exception:
+        return 0
+
+
+def _record_fleet_membership(bot_id, chat_id, chat_title):
+    """Record a chat in the shared fleet registry (main bot + every clone)."""
+    try:
+        from database import db as _db
+        _db.record_fleet_membership(chat_id, chat_title, include_bot_id=bot_id)
+    except Exception as e:
+        logger.error(f"Failed to record fleet membership for {chat_id}: {e}")
+
+
 async def handle_bot_added_to_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the bot being added to (or removed from) a chat."""
     chat = update.effective_chat
     new_member = update.my_chat_member.new_chat_member if update.my_chat_member else None
 
-    # Ignore the "removed from chat" / "kicked/banned" cases.
+    # The bot was removed / kicked / banned from the chat.
     if new_member and new_member.status in (ChatMemberStatus.LEFT, ChatMemberStatus.BANNED):
         logger.info(f"Bot removed from chat {chat.id} ({chat.title})")
+        # Clean the fleet registry: this bot (or clone) no longer serves the group.
+        bot_id = await _fleet_bot_id(context)
+        try:
+            from database import db as _db
+            _db.remove_fleet_membership(chat.id, bot_id)
+        except Exception as e:
+            logger.error(f"Failed to remove fleet membership for {chat.id}: {e}")
         return
 
     # Register the chat and sync its admins so the admin who added the bot can
@@ -131,7 +166,12 @@ async def handle_bot_added_to_chat(update: Update, context: ContextTypes.DEFAULT
     # MY_CHAT_MEMBER change, e.g. when it is promoted to admin.)
     db.get_or_create_chat(chat.id, chat.title)
     await sync_telegram_admins(context, chat.id)
-    logger.info(f"Bot added to chat {chat.id} ({chat.title}); chat registered and admins synced")
+
+    # Record the group in the fleet-wide registry so the owner's /groups
+    # command shows every group any fleet bot (main or clone) is in.
+    bot_id = await _fleet_bot_id(context)
+    _record_fleet_membership(bot_id, chat.id, chat.title)
+    logger.info(f"Bot added to chat {chat.id} ({chat.title}); chat registered, admins synced, fleet membership recorded")
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """Handle errors"""

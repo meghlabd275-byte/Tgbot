@@ -217,328 +217,369 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.error(f"Error in handle_all_messages: {e}")
         await error_handler(update, context)
 
+def _register_handlers(application):
+    """Register every command and event handler on the given application.
+
+    Used by the main bot and by every live clone so all bots share the
+    exact same feature pipeline.
+    """
+
+    # Admin utility commands
+    application.add_handler(CommandHandler("fileid", fileid_command))
+
+    # Chat management commands
+    application.add_handler(CommandHandler("activate", activate_command))
+    application.add_handler(CommandHandler("silence", silence_command))
+    application.add_handler(CommandHandler("unsilence", unsilence_command))
+    application.add_handler(CommandHandler("underattack", underattack_command))
+    application.add_handler(CommandHandler("ua", ua_command))
+    application.add_handler(CommandHandler("reload", reload_command))
+    application.add_handler(CommandHandler("debug", debug_command))
+    application.add_handler(CommandHandler("pin", pin_command))
+    application.add_handler(CommandHandler("unpin", unpin_command))
+    application.add_handler(CommandHandler("purge", purge_command))
+    application.add_handler(CommandHandler("spurge", spurge_command))
+    application.add_handler(CommandHandler("del", del_command))
+    application.add_handler(CommandHandler("delete", del_command))
+    application.add_handler(CommandHandler("adminlist", adminlist_command))
+    application.add_handler(CommandHandler("admins", adminlist_command))
+    application.add_handler(CommandHandler("warnmode", warnmode_command))
+
+    # User management commands
+    application.add_handler(CommandHandler("promote", promote_command))
+    application.add_handler(CommandHandler("title", title_command))
+    application.add_handler(CommandHandler("demote", demote_command))
+
+    application.add_handler(CommandHandler("ban", ban_command))
+    application.add_handler(CommandHandler("sban", sban_command))
+    application.add_handler(CommandHandler("gban", gban_command))
+    application.add_handler(CommandHandler("sgban", sgban_command))
+
+    application.add_handler(CommandHandler("unban", unban_command))
+    application.add_handler(CommandHandler("gunban", gunban_command))
+    application.add_handler(CommandHandler("banlist", banlist_command))
+
+    application.add_handler(CommandHandler("kick", kick_command))
+    application.add_handler(CommandHandler("skick", skick_command))
+    application.add_handler(CommandHandler("gkick", gkick_command))
+
+    application.add_handler(CommandHandler("mute", mute_command))
+    application.add_handler(CommandHandler("unmute", unmute_command))
+    application.add_handler(CommandHandler("smute", smute_command))
+
+    # Warning system commands
+    application.add_handler(CommandHandler("warn", warn_command))
+    application.add_handler(CommandHandler("gwarn", gwarn_command))
+    application.add_handler(CommandHandler("swarn", swarn_command))
+    application.add_handler(CommandHandler("unwarn", unwarn_command))
+    application.add_handler(CommandHandler("resetwarns", resetwarns_command))
+    application.add_handler(CommandHandler("warnings", warnings_command))
+
+    # Whitelist system commands
+    application.add_handler(CommandHandler("whitelist", whitelist_command))
+    application.add_handler(CommandHandler("gwhitelist", gwhitelist_command))
+    application.add_handler(CommandHandler("unwhitelist", unwhitelist_command))
+    application.add_handler(CommandHandler("gunwhitelist", gunwhitelist_command))
+    application.add_handler(CommandHandler("whitelisted", whitelisted_command))
+    application.add_handler(CommandHandler("checkwhitelist", checkwhitelist_command))
+
+    # User info commands
+    application.add_handler(CommandHandler("resetuser", resetuser_command))
+    application.add_handler(CommandHandler("resetrep", resetrep_command))
+    application.add_handler(CommandHandler("user", user_command))
+    application.add_handler(CommandHandler("lastactive", lastactive_command))
+    application.add_handler(CommandHandler("id", id_command))
+    application.add_handler(CommandHandler("chatinfo", chatinfo_command))
+
+    # Verification commands
+    application.add_handler(CommandHandler("verify", verify_command))
+
+    # Help commands
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("about", about_command))
+    application.add_handler(CommandHandler("commands", commands_command))
+
+    # Anti-flood commands
+    application.add_handler(CommandHandler("setflood", setflood_command))
+    application.add_handler(CommandHandler("setfloodmode", setfloodmode_command))
+    application.add_handler(CommandHandler("flood", flood_command))
+    application.add_handler(CommandHandler("antiraid", antiraid_command))
+
+    # Filter commands
+    application.add_handler(CommandHandler("addfilter", addfilter_command))
+    application.add_handler(CommandHandler("removefilter", removefilter_command))
+    application.add_handler(CommandHandler("filters", filters_command))
+    application.add_handler(CommandHandler("lock", lock_command))
+    application.add_handler(CommandHandler("unlock", unlock_command))
+    application.add_handler(CommandHandler("locks", locks_command))
+    application.add_handler(CommandHandler("locktypes", locktypes_command))
+    application.add_handler(CommandHandler("antispam", antispam_command))
+    application.add_handler(CommandHandler("allowlist", allowlist_command))
+    application.add_handler(CommandHandler("unallowlist", unallowlist_command))
+
+    # Welcome system commands
+    application.add_handler(CommandHandler("setwelcome", setwelcome_command))
+    application.add_handler(CommandHandler("setgoodbye", setgoodbye_command))
+    application.add_handler(CommandHandler("welcome", welcome_command))
+    application.add_handler(CommandHandler("goodbye", goodbye_command))
+    application.add_handler(CommandHandler("captcha", captcha_command))
+    application.add_handler(CommandHandler("cleanservice", cleanservice_command))
+    application.add_handler(CommandHandler("joinhider", joinhider_command))
+    application.add_handler(CommandHandler("setwelcomebutton", setwelcomebutton_command))
+    application.add_handler(CommandHandler("welcomebuttons", welcomebuttons_command))
+    application.add_handler(CommandHandler("delwelcomebutton", delwelcomebutton_command))
+    application.add_handler(CommandHandler("welcomedelete", welcomedelete_command))
+    application.add_handler(CommandHandler("removeurls", removeurls_command))
+
+    # Quick reply commands (contract addresses, keyword links, greeting filter)
+    application.add_handler(CommandHandler("setcontract", setcontract_command))
+    application.add_handler(CommandHandler("delcontract", delcontract_command))
+    application.add_handler(CommandHandler("contracts", contracts_command))
+    application.add_handler(CommandHandler("setkeywordlink", setkeywordlink_command))
+    application.add_handler(CommandHandler("delkeywordlink", delkeywordlink_command))
+    application.add_handler(CommandHandler("keywordlinks", keywordlinks_command))
+    application.add_handler(CommandHandler("greetingfilter", greetingfilter_command))
+
+    # Notes and rules commands
+    application.add_handler(CommandHandler("save", save_command))
+    application.add_handler(CommandHandler("get", get_command))
+    application.add_handler(CommandHandler("clear", clear_command))
+    application.add_handler(CommandHandler("notes", notes_command))
+    application.add_handler(CommandHandler("setrules", setrules_command))
+    application.add_handler(CommandHandler("rules", rules_command))
+    application.add_handler(CommandHandler("clearrules", clearrules_command))
+
+    # Report system commands
+    application.add_handler(CommandHandler("report", report_command))
+    application.add_handler(CommandHandler("reports", reports_command))
+    application.add_handler(CommandHandler("reporthistory", reporthistory_command))
+
+    # Advanced feature commands
+    application.add_handler(CommandHandler("setlang", setlang_command))
+    application.add_handler(CommandHandler("nightmode", nightmode_command))
+    application.add_handler(CommandHandler("slowmode", slowmode_command))
+    application.add_handler(CommandHandler("addcmd", addcmd_command))
+    application.add_handler(CommandHandler("delcmd", delcmd_command))
+    application.add_handler(CommandHandler("listcmds", listcmds_command))
+    application.add_handler(CommandHandler("cleanup", cleanup_command))
+    application.add_handler(CommandHandler("backup", backup_command))
+
+    # Federation commands
+    application.add_handler(CommandHandler("fednew", fednew_command))
+    application.add_handler(CommandHandler("newfed", fednew_command))
+    application.add_handler(CommandHandler("feddel", feddel_command))
+    application.add_handler(CommandHandler("delfed", feddel_command))
+    application.add_handler(CommandHandler("fedrename", fedrename_command))
+    application.add_handler(CommandHandler("renamefed", fedrename_command))
+    application.add_handler(CommandHandler("fedinfo", fedinfo_command))
+    application.add_handler(CommandHandler("fedadmins", fedadmins_command))
+    application.add_handler(CommandHandler("fedpromote", fedpromote_command))
+    application.add_handler(CommandHandler("fpromote", fedpromote_command))
+    application.add_handler(CommandHandler("feddemote", feddemote_command))
+    application.add_handler(CommandHandler("fdemote", feddemote_command))
+    application.add_handler(CommandHandler("fedjoin", fedjoin_command))
+    application.add_handler(CommandHandler("joinfed", fedjoin_command))
+    application.add_handler(CommandHandler("fedleave", fedleave_command))
+    application.add_handler(CommandHandler("leavefed", fedleave_command))
+    application.add_handler(CommandHandler("fedchat", fedchat_command))
+    application.add_handler(CommandHandler("chatfed", fedchat_command))
+    application.add_handler(CommandHandler("fban", fedban_command))
+    application.add_handler(CommandHandler("fedban", fedban_command))
+    application.add_handler(CommandHandler("fedunban", fedunban_command))
+    application.add_handler(CommandHandler("unfban", fedunban_command))
+    application.add_handler(CommandHandler("funban", fedunban_command))
+    application.add_handler(CommandHandler("fedkick", fedkick_command))
+    application.add_handler(CommandHandler("fkick", fedkick_command))
+    application.add_handler(CommandHandler("fedmute", fedmute_command))
+    application.add_handler(CommandHandler("fmute", fedmute_command))
+    application.add_handler(CommandHandler("fedbans", fedbans_command))
+    application.add_handler(CommandHandler("fbans", fedbans_command))
+
+    # Connection commands
+    application.add_handler(CommandHandler("connect", connect_command))
+    application.add_handler(CommandHandler("disconnect", disconnect_command))
+    application.add_handler(CommandHandler("connection", connection_command))
+    application.add_handler(CommandHandler("connections", connection_command))
+    application.add_handler(CommandHandler("reconnect", reconnect_command))
+
+    # Approval & ignore commands
+    application.add_handler(CommandHandler("approve", approve_command))
+    application.add_handler(CommandHandler("unapprove", unapprove_command))
+    application.add_handler(CommandHandler("approval", approval_command))
+    application.add_handler(CommandHandler("approved", approved_command))
+    application.add_handler(CommandHandler("unapproveall", unapproveall_command))
+    application.add_handler(CommandHandler("ignore", ignore_command))
+    application.add_handler(CommandHandler("unignore", unignore_command))
+    application.add_handler(CommandHandler("ignored", ignored_command))
+
+    # Owner-only service controls (disable / resume / list disabled groups)
+    application.add_handler(CommandHandler("disable", disable_command))
+    application.add_handler(CommandHandler("disableservices", disable_command))
+    application.add_handler(CommandHandler("resume", resume_command))
+    application.add_handler(CommandHandler("resumeservices", resume_command))
+    application.add_handler(CommandHandler("disabledgroups", disabledgroups_command))
+
+    # Super-admin fleet commands: /groups, /clone, /clone_bots, /bot*, /commands
+    from handlers.owner import (
+        groups_command, clone_bots_command, bot_command, botdel_command,
+        clone_conversation_handler,
+    )
+    application.add_handler(CommandHandler("groups", groups_command))
+    application.add_handler(clone_conversation_handler())
+    application.add_handler(CommandHandler("clone_bots", clone_bots_command))
+    application.add_handler(CommandHandler("clonebots", clone_bots_command))
+    application.add_handler(CommandHandler("bot", bot_command))
+    application.add_handler(CommandHandler("botdel", botdel_command))
+
+    # Invite-link system (unique per-user links + join statistics)
+    application.add_handler(CommandHandler("link", link_command))
+    application.add_handler(CommandHandler("link_stat", link_stat_command))
+    application.add_handler(CommandHandler("linkstats", link_stat_command))
+
+    # Admin-controlled member commands (!name)
+    application.add_handler(CommandHandler("usercmd", usercmd_command))
+    application.add_handler(CommandHandler("usercmds", usercmd_command))
+
+    # Chat statistics / leaderboard
+    application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("statistics", stats_command))
+    application.add_handler(CommandHandler("top", top_command))
+    application.add_handler(CommandHandler("leaderboard", top_command))
+
+    # Event handlers
+    application.add_handler(MessageHandler(
+        filters.StatusUpdate.NEW_CHAT_MEMBERS,
+        handle_new_member_welcome
+    ))
+
+    application.add_handler(MessageHandler(
+        filters.StatusUpdate.LEFT_CHAT_MEMBER,
+        handle_left_member_goodbye
+    ))
+
+    # Delete ALL other service messages (pinned, title change, photo change,
+    # group created, etc.) when 'delete_all_system_msg' or legacy
+    # 'delete_service' is on. Excludes join/leave (handled above).
+    application.add_handler(MessageHandler(
+        filters.StatusUpdate.ALL
+        & ~filters.StatusUpdate.NEW_CHAT_MEMBERS
+        & ~filters.StatusUpdate.LEFT_CHAT_MEMBER,
+        handle_service_message
+    ))
+
+    # Handle forwarded messages for verification (private chats only)
+    application.add_handler(MessageHandler(
+        filters.FORWARDED & filters.ChatType.PRIVATE,
+        handle_forwarded_message
+    ))
+
+    # Custom command fallback (admin-configured via /addcmd): any "/command"
+    # that did not match a registered CommandHandler above is dispatched to
+    # handle_custom_command. This runs AFTER every CommandHandler so built-in
+    # commands always take precedence over user-created ones.
+    application.add_handler(MessageHandler(
+        filters.COMMAND,
+        handle_custom_command
+    ))
+
+    # Chat member updates (promotions, bans, etc.)
+    application.add_handler(ChatMemberHandler(
+        handle_chat_member_update,
+        ChatMemberHandler.CHAT_MEMBER
+    ))
+
+    # Bot's own membership changes (added to / removed from a chat).
+    # On add, register the chat and auto-sync its admins so the admin who
+    # added the bot can immediately configure the group.
+    application.add_handler(ChatMemberHandler(
+        handle_bot_added_to_chat,
+        ChatMemberHandler.MY_CHAT_MEMBER
+    ))
+
+    # Callback query handlers
+    from telegram.ext import CallbackQueryHandler
+    application.add_handler(CallbackQueryHandler(
+        handle_captcha_callback,
+        pattern=r"^captcha_"
+    ))
+    application.add_handler(CallbackQueryHandler(
+        handle_report_callback,
+        pattern=r"^report_"
+    ))
+    application.add_handler(CallbackQueryHandler(
+        handle_connect_callback,
+        pattern=r"^connect_"
+    ))
+
+    # General message handler (should be last)
+    application.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND,
+        handle_all_messages
+    ))
+
+    # Media message handler for filters
+    application.add_handler(MessageHandler(
+        ~filters.COMMAND & ~filters.StatusUpdate.ALL,
+        handle_all_messages
+    ))
+
+    # Edited message handler — re-run filters (URL remover, word/url/spam/media)
+    # so that users cannot bypass link/word filters by editing a message after posting.
+    application.add_handler(MessageHandler(
+        filters.UpdateType.EDITED_MESSAGE & ~filters.COMMAND,
+        handle_all_messages
+    ))
+
+    # Kept from original main():
+    application.add_error_handler(error_handler)
+
+    logger.info("Bot handlers registered successfully")
+
+
+def build_application(token: str = None, start_clones: bool = True):
+    """Build a fully-configured PTB Application with every command and event handler.
+
+    Tokens are used only to construct the application; handlers read the
+    process-wide Config at call time so one codebase powers the main bot and
+    every live clone (see handlers/clonebot.py).
+
+    When ``start_clones`` is True (default for the real main bot) the clone
+    supervisor is launched first so registered 'active' clone bots come online
+    in threads alongside the main process.
+    """
+    token = token or Config.BOT_TOKEN
+    if start_clones:
+        try:
+            from handlers.clonebot import start_clone_supervisor
+            start_clone_supervisor()
+        except Exception as e:
+            logger.error(f"Failed to start clone supervisor: {e}")
+
+    application = Application.builder().token(token).build()
+    _register_handlers(application)
+    return application
+
+
 def main():
-    """Main function to run the bot"""
+    """Main function to run the primary (deployed) bot."""
     try:
         # Validate configuration
         Config.validate()
         logger.info("Configuration validated successfully")
 
-        # Create application
-        application = Application.builder().token(Config.BOT_TOKEN).build()
-
-        # Add command handlers
-
-        # Admin utility commands
-        application.add_handler(CommandHandler("fileid", fileid_command))
-
-        # Chat management commands
-        application.add_handler(CommandHandler("activate", activate_command))
-        application.add_handler(CommandHandler("silence", silence_command))
-        application.add_handler(CommandHandler("unsilence", unsilence_command))
-        application.add_handler(CommandHandler("underattack", underattack_command))
-        application.add_handler(CommandHandler("ua", ua_command))
-        application.add_handler(CommandHandler("reload", reload_command))
-        application.add_handler(CommandHandler("debug", debug_command))
-        application.add_handler(CommandHandler("pin", pin_command))
-        application.add_handler(CommandHandler("unpin", unpin_command))
-        application.add_handler(CommandHandler("purge", purge_command))
-        application.add_handler(CommandHandler("spurge", spurge_command))
-        application.add_handler(CommandHandler("del", del_command))
-        application.add_handler(CommandHandler("delete", del_command))
-        application.add_handler(CommandHandler("adminlist", adminlist_command))
-        application.add_handler(CommandHandler("admins", adminlist_command))
-        application.add_handler(CommandHandler("warnmode", warnmode_command))
-
-        # User management commands
-        application.add_handler(CommandHandler("promote", promote_command))
-        application.add_handler(CommandHandler("title", title_command))
-        application.add_handler(CommandHandler("demote", demote_command))
-
-        application.add_handler(CommandHandler("ban", ban_command))
-        application.add_handler(CommandHandler("sban", sban_command))
-        application.add_handler(CommandHandler("gban", gban_command))
-        application.add_handler(CommandHandler("sgban", sgban_command))
-
-        application.add_handler(CommandHandler("unban", unban_command))
-        application.add_handler(CommandHandler("gunban", gunban_command))
-        application.add_handler(CommandHandler("banlist", banlist_command))
-
-        application.add_handler(CommandHandler("kick", kick_command))
-        application.add_handler(CommandHandler("skick", skick_command))
-        application.add_handler(CommandHandler("gkick", gkick_command))
-
-        application.add_handler(CommandHandler("mute", mute_command))
-        application.add_handler(CommandHandler("unmute", unmute_command))
-        application.add_handler(CommandHandler("smute", smute_command))
-
-        # Warning system commands
-        application.add_handler(CommandHandler("warn", warn_command))
-        application.add_handler(CommandHandler("gwarn", gwarn_command))
-        application.add_handler(CommandHandler("swarn", swarn_command))
-        application.add_handler(CommandHandler("unwarn", unwarn_command))
-        application.add_handler(CommandHandler("resetwarns", resetwarns_command))
-        application.add_handler(CommandHandler("warnings", warnings_command))
-
-        # Whitelist system commands
-        application.add_handler(CommandHandler("whitelist", whitelist_command))
-        application.add_handler(CommandHandler("gwhitelist", gwhitelist_command))
-        application.add_handler(CommandHandler("unwhitelist", unwhitelist_command))
-        application.add_handler(CommandHandler("gunwhitelist", gunwhitelist_command))
-        application.add_handler(CommandHandler("whitelisted", whitelisted_command))
-        application.add_handler(CommandHandler("checkwhitelist", checkwhitelist_command))
-
-        # User info commands
-        application.add_handler(CommandHandler("resetuser", resetuser_command))
-        application.add_handler(CommandHandler("resetrep", resetrep_command))
-        application.add_handler(CommandHandler("user", user_command))
-        application.add_handler(CommandHandler("lastactive", lastactive_command))
-        application.add_handler(CommandHandler("id", id_command))
-        application.add_handler(CommandHandler("chatinfo", chatinfo_command))
-
-        # Verification commands
-        application.add_handler(CommandHandler("verify", verify_command))
-
-        # Help commands
-        application.add_handler(CommandHandler("help", help_command))
-        application.add_handler(CommandHandler("start", start_command))
-        application.add_handler(CommandHandler("about", about_command))
-        application.add_handler(CommandHandler("commands", commands_command))
-
-        # Anti-flood commands
-        application.add_handler(CommandHandler("setflood", setflood_command))
-        application.add_handler(CommandHandler("setfloodmode", setfloodmode_command))
-        application.add_handler(CommandHandler("flood", flood_command))
-        application.add_handler(CommandHandler("antiraid", antiraid_command))
-
-        # Filter commands
-        application.add_handler(CommandHandler("addfilter", addfilter_command))
-        application.add_handler(CommandHandler("removefilter", removefilter_command))
-        application.add_handler(CommandHandler("filters", filters_command))
-        application.add_handler(CommandHandler("lock", lock_command))
-        application.add_handler(CommandHandler("unlock", unlock_command))
-        application.add_handler(CommandHandler("locks", locks_command))
-        application.add_handler(CommandHandler("locktypes", locktypes_command))
-        application.add_handler(CommandHandler("antispam", antispam_command))
-        application.add_handler(CommandHandler("allowlist", allowlist_command))
-        application.add_handler(CommandHandler("unallowlist", unallowlist_command))
-
-        # Welcome system commands
-        application.add_handler(CommandHandler("setwelcome", setwelcome_command))
-        application.add_handler(CommandHandler("setgoodbye", setgoodbye_command))
-        application.add_handler(CommandHandler("welcome", welcome_command))
-        application.add_handler(CommandHandler("goodbye", goodbye_command))
-        application.add_handler(CommandHandler("captcha", captcha_command))
-        application.add_handler(CommandHandler("cleanservice", cleanservice_command))
-        application.add_handler(CommandHandler("joinhider", joinhider_command))
-        application.add_handler(CommandHandler("setwelcomebutton", setwelcomebutton_command))
-        application.add_handler(CommandHandler("welcomebuttons", welcomebuttons_command))
-        application.add_handler(CommandHandler("delwelcomebutton", delwelcomebutton_command))
-        application.add_handler(CommandHandler("welcomedelete", welcomedelete_command))
-        application.add_handler(CommandHandler("removeurls", removeurls_command))
-
-        # Quick reply commands (contract addresses, keyword links, greeting filter)
-        application.add_handler(CommandHandler("setcontract", setcontract_command))
-        application.add_handler(CommandHandler("delcontract", delcontract_command))
-        application.add_handler(CommandHandler("contracts", contracts_command))
-        application.add_handler(CommandHandler("setkeywordlink", setkeywordlink_command))
-        application.add_handler(CommandHandler("delkeywordlink", delkeywordlink_command))
-        application.add_handler(CommandHandler("keywordlinks", keywordlinks_command))
-        application.add_handler(CommandHandler("greetingfilter", greetingfilter_command))
-
-        # Notes and rules commands
-        application.add_handler(CommandHandler("save", save_command))
-        application.add_handler(CommandHandler("get", get_command))
-        application.add_handler(CommandHandler("clear", clear_command))
-        application.add_handler(CommandHandler("notes", notes_command))
-        application.add_handler(CommandHandler("setrules", setrules_command))
-        application.add_handler(CommandHandler("rules", rules_command))
-        application.add_handler(CommandHandler("clearrules", clearrules_command))
-
-        # Report system commands
-        application.add_handler(CommandHandler("report", report_command))
-        application.add_handler(CommandHandler("reports", reports_command))
-        application.add_handler(CommandHandler("reporthistory", reporthistory_command))
-
-        # Advanced feature commands
-        application.add_handler(CommandHandler("setlang", setlang_command))
-        application.add_handler(CommandHandler("nightmode", nightmode_command))
-        application.add_handler(CommandHandler("slowmode", slowmode_command))
-        application.add_handler(CommandHandler("addcmd", addcmd_command))
-        application.add_handler(CommandHandler("delcmd", delcmd_command))
-        application.add_handler(CommandHandler("listcmds", listcmds_command))
-        application.add_handler(CommandHandler("cleanup", cleanup_command))
-        application.add_handler(CommandHandler("backup", backup_command))
-
-        # Federation commands
-        application.add_handler(CommandHandler("fednew", fednew_command))
-        application.add_handler(CommandHandler("newfed", fednew_command))
-        application.add_handler(CommandHandler("feddel", feddel_command))
-        application.add_handler(CommandHandler("delfed", feddel_command))
-        application.add_handler(CommandHandler("fedrename", fedrename_command))
-        application.add_handler(CommandHandler("renamefed", fedrename_command))
-        application.add_handler(CommandHandler("fedinfo", fedinfo_command))
-        application.add_handler(CommandHandler("fedadmins", fedadmins_command))
-        application.add_handler(CommandHandler("fedpromote", fedpromote_command))
-        application.add_handler(CommandHandler("fpromote", fedpromote_command))
-        application.add_handler(CommandHandler("feddemote", feddemote_command))
-        application.add_handler(CommandHandler("fdemote", feddemote_command))
-        application.add_handler(CommandHandler("fedjoin", fedjoin_command))
-        application.add_handler(CommandHandler("joinfed", fedjoin_command))
-        application.add_handler(CommandHandler("fedleave", fedleave_command))
-        application.add_handler(CommandHandler("leavefed", fedleave_command))
-        application.add_handler(CommandHandler("fedchat", fedchat_command))
-        application.add_handler(CommandHandler("chatfed", fedchat_command))
-        application.add_handler(CommandHandler("fban", fedban_command))
-        application.add_handler(CommandHandler("fedban", fedban_command))
-        application.add_handler(CommandHandler("fedunban", fedunban_command))
-        application.add_handler(CommandHandler("unfban", fedunban_command))
-        application.add_handler(CommandHandler("funban", fedunban_command))
-        application.add_handler(CommandHandler("fedkick", fedkick_command))
-        application.add_handler(CommandHandler("fkick", fedkick_command))
-        application.add_handler(CommandHandler("fedmute", fedmute_command))
-        application.add_handler(CommandHandler("fmute", fedmute_command))
-        application.add_handler(CommandHandler("fedbans", fedbans_command))
-        application.add_handler(CommandHandler("fbans", fedbans_command))
-
-        # Connection commands
-        application.add_handler(CommandHandler("connect", connect_command))
-        application.add_handler(CommandHandler("disconnect", disconnect_command))
-        application.add_handler(CommandHandler("connection", connection_command))
-        application.add_handler(CommandHandler("connections", connection_command))
-        application.add_handler(CommandHandler("reconnect", reconnect_command))
-
-        # Approval & ignore commands
-        application.add_handler(CommandHandler("approve", approve_command))
-        application.add_handler(CommandHandler("unapprove", unapprove_command))
-        application.add_handler(CommandHandler("approval", approval_command))
-        application.add_handler(CommandHandler("approved", approved_command))
-        application.add_handler(CommandHandler("unapproveall", unapproveall_command))
-        application.add_handler(CommandHandler("ignore", ignore_command))
-        application.add_handler(CommandHandler("unignore", unignore_command))
-        application.add_handler(CommandHandler("ignored", ignored_command))
-
-        # Owner-only service controls (disable / resume / list disabled groups)
-        application.add_handler(CommandHandler("disable", disable_command))
-        application.add_handler(CommandHandler("disableservices", disable_command))
-        application.add_handler(CommandHandler("resume", resume_command))
-        application.add_handler(CommandHandler("resumeservices", resume_command))
-        application.add_handler(CommandHandler("disabledgroups", disabledgroups_command))
-
-        # Invite-link system (unique per-user links + join statistics)
-        application.add_handler(CommandHandler("link", link_command))
-        application.add_handler(CommandHandler("link_stat", link_stat_command))
-        application.add_handler(CommandHandler("linkstats", link_stat_command))
-
-        # Admin-controlled member commands (!name)
-        application.add_handler(CommandHandler("usercmd", usercmd_command))
-        application.add_handler(CommandHandler("usercmds", usercmd_command))
-
-        # Chat statistics / leaderboard
-        application.add_handler(CommandHandler("stats", stats_command))
-        application.add_handler(CommandHandler("statistics", stats_command))
-        application.add_handler(CommandHandler("top", top_command))
-        application.add_handler(CommandHandler("leaderboard", top_command))
-
-        # Event handlers
-        application.add_handler(MessageHandler(
-            filters.StatusUpdate.NEW_CHAT_MEMBERS,
-            handle_new_member_welcome
-        ))
-
-        application.add_handler(MessageHandler(
-            filters.StatusUpdate.LEFT_CHAT_MEMBER,
-            handle_left_member_goodbye
-        ))
-
-        # Delete ALL other service messages (pinned, title change, photo change,
-        # group created, etc.) when 'delete_all_system_msg' or legacy
-        # 'delete_service' is on. Excludes join/leave (handled above).
-        application.add_handler(MessageHandler(
-            filters.StatusUpdate.ALL
-            & ~filters.StatusUpdate.NEW_CHAT_MEMBERS
-            & ~filters.StatusUpdate.LEFT_CHAT_MEMBER,
-            handle_service_message
-        ))
-
-        # Handle forwarded messages for verification (private chats only)
-        application.add_handler(MessageHandler(
-            filters.FORWARDED & filters.ChatType.PRIVATE,
-            handle_forwarded_message
-        ))
-
-        # Custom command fallback (admin-configured via /addcmd): any "/command"
-        # that did not match a registered CommandHandler above is dispatched to
-        # handle_custom_command. This runs AFTER every CommandHandler so built-in
-        # commands always take precedence over user-created ones.
-        application.add_handler(MessageHandler(
-            filters.COMMAND,
-            handle_custom_command
-        ))
-
-        # Chat member updates (promotions, bans, etc.)
-        application.add_handler(ChatMemberHandler(
-            handle_chat_member_update,
-            ChatMemberHandler.CHAT_MEMBER
-        ))
-
-        # Bot's own membership changes (added to / removed from a chat).
-        # On add, register the chat and auto-sync its admins so the admin who
-        # added the bot can immediately configure the group.
-        application.add_handler(ChatMemberHandler(
-            handle_bot_added_to_chat,
-            ChatMemberHandler.MY_CHAT_MEMBER
-        ))
-
-        # Callback query handlers
-        from telegram.ext import CallbackQueryHandler
-        application.add_handler(CallbackQueryHandler(
-            handle_captcha_callback,
-            pattern=r"^captcha_"
-        ))
-        application.add_handler(CallbackQueryHandler(
-            handle_report_callback,
-            pattern=r"^report_"
-        ))
-        application.add_handler(CallbackQueryHandler(
-            handle_connect_callback,
-            pattern=r"^connect_"
-        ))
-
-        # General message handler (should be last)
-        application.add_handler(MessageHandler(
-            filters.TEXT & ~filters.COMMAND,
-            handle_all_messages
-        ))
-
-        # Media message handler for filters
-        application.add_handler(MessageHandler(
-            ~filters.COMMAND & ~filters.StatusUpdate.ALL,
-            handle_all_messages
-        ))
-
-        # Edited message handler — re-run filters (URL remover, word/url/spam/media)
-        # so that users cannot bypass link/word filters by editing a message after posting.
-        application.add_handler(MessageHandler(
-            filters.UpdateType.EDITED_MESSAGE & ~filters.COMMAND,
-            handle_all_messages
-        ))
-
-        # Error handler
-        application.add_error_handler(error_handler)
-
-        logger.info("Bot handlers registered successfully")
-
-        # Start the bot
-        logger.info("🤖 Starting Telegram Admin Bot...")
+        # build_application() brings registered clone bots online (supervisor)
+        # and returns a fully-configured application for the main bot.
+        application = build_application()
+        logger.info("🤖 Starting main Telegram Admin Bot...")
         application.run_polling(
             allowed_updates=Update.ALL_TYPES,
             drop_pending_updates=True
         )
-
     except Exception as e:
         logger.error(f"Failed to start bot: {e}")
         raise
+
 
 if __name__ == '__main__':
     main()

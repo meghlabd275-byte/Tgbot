@@ -75,9 +75,31 @@ class Config:
                 ids.add(int(raw))
         return ids
 
+    # ------------------------------------------------------------------
+    # Clone-bot environment overrides.
+    #
+    # A clone bot is *live*: it runs the exact same handlers as the main bot
+    # but is owned by the same super admin, so its commands must run as if
+    # they were issued to the main bot. The clone supervisor starts each clone
+    # in a dedicated thread and switches the process-wide environment for the
+    # duration of that bot's `run_polling` loop. Handlers read these values at
+    # call time (not import time) so every bot in the fleet sees the same
+    # owner and the same shared database.
+    # ------------------------------------------------------------------
+    @classmethod
+    def configure_bot_environment(cls, bot_token: str = None, bot_username: str = None):
+        """Point the process-wide Config at a specific bot instance.
+
+        Used by the clone supervisor before starting a clone's polling loop.
+        Values read from environment variables remain untouched; handlers that
+        need the *current* bot's identity can read ``Config.current_token``.
+        """
+        cls.current_token = bot_token or os.getenv('BOT_TOKEN')
+        cls.current_username = bot_username or os.getenv('BOT_USERNAME')
+
     @classmethod
     def validate(cls):
-        """Validate required configuration"""
+        """Validate required configuration for the main bot."""
         if not cls.BOT_TOKEN:
             raise ValueError("BOT_TOKEN is required")
         if not cls.BOT_USERNAME:

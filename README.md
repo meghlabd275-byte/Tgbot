@@ -46,6 +46,21 @@ A comprehensive Telegram bot for advanced group management and moderation with e
   captchas, filters, notes, custom commands, reports and moderation commands.
 - Group admins **cannot** disable or resume — this control belongs exclusively to the bot owner.
 
+### 🤖 Live Clone Bots (fleet, super admin only)
+- **`/clone`** — register a **live clone** from just a bot token + bot username.
+  No deployment needed: the clone instantly runs the full feature set of the
+  main bot from inside the same process.
+- **`/clone_bots`** — list every registered clone bot with its ID and live status.
+- **`/bot start|stop|pause|resume|enable|disable|status <id|@username>`** —
+  manage any clone from Telegram.
+- **`/botdel <id|@username>`** — permanently remove a clone from the fleet.
+- **`/groups`** — list every Telegram group using the fleet (main bot or any
+  clone), with the number of days each group has been using the bot.
+- When a clone bot is added to a group, that group is recorded automatically
+  for the whole fleet (main bot + all clones).
+- All of the above are owner-only commands (SUPER_ADMIN_ID). Group admins
+  cannot use them.
+
 ## Installation
 
 1. **Clone the repository**:

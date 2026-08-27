@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, BigInteger
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, BigInteger, UniqueConstraint
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import NullPool
 from sqlalchemy.sql import func
@@ -110,6 +110,52 @@ class DisabledChat(Base):
     scope = Column(String(16), default='all')  # reserved: 'all' (all services)
     created_at = Column(DateTime, default=func.now())
 
+
+class BotInstance(Base):
+    """A cloned bot instance registered by the owner via /clone.
+
+    Every clone is *live*: it shares the main bot's full feature set and runs
+    in the same process (no separate deployment is required). Only the bot
+    owner (super admin) can register or manage clones.
+
+    Status values:
+        active   — application is running and polling updates (live)
+        paused   — polling is stopped but the bot can be resumed quickly
+        disabled — permanently stopped; must be enabled again before running
+    """
+    __tablename__ = 'bot_instances'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token = Column(String(255), nullable=False, unique=True, index=True)
+    username = Column(String(255), nullable=False, index=True)
+    bot_id = Column(BigInteger, unique=True)          # Telegram numeric bot id
+    display_name = Column(String(255))                # optional friendly label
+    status = Column(String(16), default='disabled')   # active | paused | disabled
+    created_by = Column(BigInteger)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+
+class GroupMembership(Base):
+    """Groups that bot instances have been added to.
+
+    One row per (bot, chat). When *any* bot in the fleet (the main bot or a
+    clone) is added to a group, membership is recorded for every known bot so
+    the owner's /groups command can show the complete fleet-wide picture.
+    """
+    __tablename__ = 'group_memberships'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    bot_id = Column(BigInteger, index=True)           # 0 = the main bot
+    chat_id = Column(BigInteger, index=True)
+    chat_title = Column(String(255))
+    joined_at = Column(DateTime, default=func.now())
+
+    __table_args__ = (
+        # A bot is either in a chat or it is not; (bot_id, chat_id) is unique.
+        UniqueConstraint('bot_id', 'chat_id', name='uq_group_memberships_bot_chat'),
+    )
+
 class DatabaseManager:
     def __init__(self, database_url: str = None):
         self.database_url = database_url or Config.DATABASE_URL
@@ -149,7 +195,12 @@ class DatabaseManager:
             logger.info("Using SQLite database backend")
 
         self.engine = create_engine(self.database_url, **engine_kwargs)
-        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        # expire_on_commit=False keeps attribute values loaded after commit so
+        # ORM rows returned by helpfully-named methods (e.g. register_bot_instance)
+        # can be read even after their session is closed.
+        self.SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, expire_on_commit=False, bind=self.engine
+        )
         self._create_all()
 
         # Expose model classes so handlers can do `session.query(db.Chat)` etc.
@@ -161,6 +212,8 @@ class DatabaseManager:
         self.Mute = Mute
         self.Whitelist = Whitelist
         self.DisabledChat = DisabledChat
+        self.BotInstance = BotInstance
+        self.GroupMembership = GroupMembership
         self.Base = Base
 
     def _create_all(self):
@@ -607,6 +660,264 @@ class DatabaseManager:
             return len(whitelists) > 0
         finally:
             session.close()
+
+# ------------------------------------------------------------------
+    # Clone-bot registry (BotInstance) — owner-only management.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_main_token(token: str) -> bool:
+        """True if ``token`` is the main bot's token from the environment."""
+        return bool(token) and token == Config.BOT_TOKEN
+
+    def get_bot_instance_by_id(self, instance_id: int):
+        """Return a BotInstance row by its database id (or None)."""
+        session = self.get_session()
+        try:
+            return session.query(BotInstance).filter(BotInstance.id == instance_id).first()
+        finally:
+            session.close()
+
+    def get_bot_instances(self, only_known: bool = True):
+        """Return all registered bot instances (excluding the main bot).
+
+        When ``only_known`` is False the main bot (token equal to the env
+        BOT_TOKEN) is also included as a synthetic row, which is handy for the
+        /groups fleet-wide listing.
+        """
+        session = self.get_session()
+        try:
+            rows = session.query(BotInstance).order_by(BotInstance.created_at.asc()).all()
+            if only_known:
+                return rows
+            known = {r.token for r in rows}
+            main_token = Config.BOT_TOKEN
+            if main_token and main_token not in known:
+                synthetic = BotInstance(
+                    token=main_token,
+                    username=Config.BOT_USERNAME,
+                    display_name='Main bot',
+                    status='active',
+                )
+                synthetic.id = 0
+                rows.insert(0, synthetic)
+            return rows
+        finally:
+            session.close()
+
+    def get_bot_instance_by_token(self, token: str):
+        """Return a BotInstance row by bot token (or None)."""
+        session = self.get_session()
+        try:
+            return session.query(BotInstance).filter(BotInstance.token == token).first()
+        finally:
+            session.close()
+
+    def register_bot_instance(self, token: str, username: str, bot_id: int,
+                              display_name: str = None, created_by: int = None,
+                              status: str = 'disabled'):
+        """Register a new clone bot. Returns (row, created).
+
+        The main bot's own token is never accepted as a clone.
+        """
+        if self._is_main_token(token):
+            return None, False
+        session = self.get_session()
+        try:
+            existing = session.query(BotInstance).filter(
+                (BotInstance.token == token) | (BotInstance.username == username) | (BotInstance.bot_id == bot_id)
+            ).first()
+            if existing:
+                if existing.bot_id != bot_id and bot_id is not None:
+                    existing.bot_id = bot_id
+                    session.commit()
+                return existing, False
+            row = BotInstance(
+                token=token,
+                username=username,
+                bot_id=bot_id,
+                display_name=display_name,
+                created_by=created_by,
+                status=status,
+            )
+            session.add(row)
+            session.commit()
+            return row, True
+        finally:
+            session.close()
+
+    def update_bot_instance(self, instance_id: int, **fields):
+        """Update one or more fields on a BotInstance row. Returns the row."""
+        allowed = {'username', 'bot_id', 'display_name', 'status'}
+        session = self.get_session()
+        try:
+            row = session.query(BotInstance).filter(BotInstance.id == instance_id).first()
+            if not row:
+                return None
+            for key, value in fields.items():
+                if key in allowed:
+                    setattr(row, key, value)
+            session.commit()
+            return row
+        finally:
+            session.close()
+
+    def set_bot_status(self, instance_id: int, status: str) -> bool:
+        """Set a clone's status to active|paused|disabled. Returns True on change."""
+        if status not in ('active', 'paused', 'disabled'):
+            return False
+        session = self.get_session()
+        try:
+            row = session.query(BotInstance).filter(BotInstance.id == instance_id).first()
+            if not row:
+                return False
+            row.status = status
+            session.commit()
+            return True
+        finally:
+            session.close()
+
+    def delete_bot_instance(self, instance_id: int) -> bool:
+        """Remove a clone bot from the registry (and its group memberships)."""
+        session = self.get_session()
+        try:
+            row = session.query(BotInstance).filter(BotInstance.id == instance_id).first()
+            if not row:
+                return False
+            session.query(GroupMembership).filter(GroupMembership.bot_id == row.bot_id).delete()
+            session.delete(row)
+            session.commit()
+            return True
+        finally:
+            session.close()
+
+    def count_bot_instances(self) -> int:
+        """Number of registered clone bots."""
+        session = self.get_session()
+        try:
+            return session.query(BotInstance).count()
+        finally:
+            session.close()
+
+    # ------------------------------------------------------------------
+    # Fleet-wide group membership registry (GroupMembership).
+    # ------------------------------------------------------------------
+
+    def record_group_membership(self, bot_id: int, chat_id: int, chat_title: str = None):
+        """Record that ``bot_id`` is a member of ``chat_id`` (idempotent)."""
+        session = self.get_session()
+        try:
+            row = session.query(GroupMembership).filter(
+                GroupMembership.bot_id == bot_id,
+                GroupMembership.chat_id == chat_id,
+            ).first()
+            if row:
+                if chat_title and row.chat_title != chat_title:
+                    row.chat_title = chat_title
+                    session.commit()
+                return row, False
+            row = GroupMembership(bot_id=bot_id, chat_id=chat_id, chat_title=chat_title)
+            session.add(row)
+            session.commit()
+            return row, True
+        finally:
+            session.close()
+
+    def record_fleet_membership(self, chat_id: int, chat_title: str = None,
+                                include_bot_id: int = None):
+        """Record a chat membership for *every* bot in the fleet.
+
+        Called when any bot (main or clone) is added to a group. ``include_bot_id``
+        is the numeric id of the bot that physically joined; membership is also
+        recorded for the main bot (bot_id=0) and every registered clone so the
+        owner's /groups command reflects the whole fleet.
+        """
+        seen = set()
+        if include_bot_id is not None:
+            seen.add(include_bot_id)
+            self.record_group_membership(include_bot_id, chat_id, chat_title)
+        # Main bot (bot_id=0).
+        self.record_group_membership(0, chat_id, chat_title)
+        # All registered clone bots.
+        for row in self.get_bot_instances(only_known=True):
+            bid = row.bot_id
+            if bid is None or bid in seen:
+                continue
+            seen.add(bid)
+            self.record_group_membership(bid, chat_id, chat_title)
+
+    def remove_group_membership(self, bot_id: int, chat_id: int):
+        """Remove a single (bot, chat) membership row."""
+        session = self.get_session()
+        try:
+            session.query(GroupMembership).filter(
+                GroupMembership.bot_id == bot_id,
+                GroupMembership.chat_id == chat_id,
+            ).delete()
+            session.commit()
+        finally:
+            session.close()
+
+    def remove_fleet_membership(self, chat_id: int, bot_id: int):
+        """Remove a chat from the fleet registry when a bot leaves it.
+
+        If the leaving bot is the main bot (0) or a clone, we remove the row for
+        that bot. A chat is only fully removed once *no* fleet bot is in it.
+        """
+        # Remove the row for the leaving bot (0 = main bot, else clone).
+        self.remove_group_membership(bot_id, chat_id)
+
+        # A chat stays in the fleet registry as long as ANY fleet bot remains a
+        # member, so only clean up the main-bot's synthetic row when no clone is
+        # still in the chat.
+        session = self.get_session()
+        try:
+            others = session.query(GroupMembership).filter(
+                GroupMembership.chat_id == chat_id,
+                GroupMembership.bot_id != 0,
+            ).count()
+        finally:
+            session.close()
+        if others == 0:
+            self.remove_group_membership(0, chat_id)
+
+    def get_fleet_groups(self):
+        """Return distinct groups across the fleet with join dates.
+
+        Returns a list of dicts: {chat_id, title, joined_at, bot_ids, enabled_bots}.
+        """
+        session = self.get_session()
+        try:
+            rows = session.query(GroupMembership).order_by(
+                GroupMembership.chat_id, GroupMembership.joined_at
+            ).all()
+        finally:
+            session.close()
+
+        groups = {}
+        for r in rows:
+            info = groups.setdefault(r.chat_id, {
+                'chat_id': r.chat_id,
+                'title': r.chat_title,
+                'joined_at': r.joined_at,
+                'bot_ids': [],
+            })
+            if r.bot_id not in info['bot_ids']:
+                info['bot_ids'].append(r.bot_id)
+            if info['joined_at'] is None or (r.joined_at and r.joined_at < info['joined_at']):
+                info['joined_at'] = r.joined_at
+        return list(groups.values())
+
+    def get_groups_for_bot(self, bot_id: int):
+        """Return GroupMembership rows for a specific bot id (0 = main bot)."""
+        session = self.get_session()
+        try:
+            return session.query(GroupMembership).filter(
+                GroupMembership.bot_id == bot_id
+            ).order_by(GroupMembership.joined_at.desc()).all()
+        finally:
+            session.close()
+
 
 # Global database instance (uses DATABASE_URL; SQLite by default)
 db = DatabaseManager()
