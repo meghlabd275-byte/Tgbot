@@ -379,6 +379,11 @@ async def joinhider_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle new member with welcome message and captcha, plus security checks"""
     chat_id = update.effective_chat.id
+
+    # Owner kill-switch: do nothing at all when this group is disabled.
+    if db.is_chat_disabled(chat_id):
+        return
+
     new_members = update.message.new_chat_members or []
 
     # Anti-raid: track joins and auto-enable under-attack mode on a burst
@@ -612,6 +617,11 @@ async def send_welcome_message(update: Update, context: ContextTypes.DEFAULT_TYP
 async def handle_left_member_goodbye(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle member leaving with goodbye message"""
     chat_id = update.effective_chat.id
+
+    # Owner kill-switch: do nothing at all when this group is disabled.
+    if db.is_chat_disabled(chat_id):
+        return
+
     left_member = update.message.left_chat_member
     
     if not left_member or left_member.is_bot:
@@ -783,6 +793,10 @@ async def handle_service_message(update: Update, context: ContextTypes.DEFAULT_T
         return
 
     chat_id = update.effective_chat.id
+
+    # Owner kill-switch: leave the group alone entirely when disabled.
+    if db.is_chat_disabled(chat_id):
+        return
 
     session = db.get_session()
     try:

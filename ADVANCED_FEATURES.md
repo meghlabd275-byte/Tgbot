@@ -174,6 +174,14 @@ Additional powerful features for enhanced group management.
 - Shared ban lists
 - Federation administration
 
+### Owner Service Controls (super admin only):
+- `/disable` / `/disableservices` `[chat_id]` — owner disables ALL bot services in a group
+- `/resume` / `/resumeservices` `[chat_id]` — only the owner can resume
+- `/disabledgroups` — list all groups whose services are disabled
+- Persisted in the `disabled_chats` table; enforced across the entire pipeline
+  (messages, joins/leaves, captchas, filters, notes, custom commands, reports,
+  moderation commands). Group admins cannot disable or resume.
+
 ---
 
 ## 🗄️ Database Schema
@@ -193,6 +201,7 @@ The bot uses the following new database tables:
 - `chat_settings` - Advanced chat settings
 - `federations` - Federation management
 - `custom_commands` - Custom command responses
+- `disabled_chats` - Owner kill-switch (groups whose services are disabled)
 
 ---
 

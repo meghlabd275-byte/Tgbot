@@ -103,3 +103,21 @@ Cloned from `meghlabd275-byte/Tgbot` (branch `main`).
 - `handlers/filters.py` — `/locktypes`, `/allowlist`, `/unallowlist` command
   verbs exist; check function names before assuming they are absent.
 
+## Owner kill-switch (disable/resume services)
+- `database.py` — `DisabledChat` model (`disabled_chats` table: chat_id unique,
+  disabled_by, reason, scope, created_at) + `DatabaseManager.disable_chat`,
+  `enable_chat`, `is_chat_disabled`, `get_disabled_chats`, `disabled_chat_count`.
+  Exposed as `db.DisabledChat`.
+- `handlers/services.py` — owner-only `/disable` (`/disableservices`), `/resume`
+  (`/resumeservices`), `/disabledgroups`. `resolve_chat_id` accepts an optional
+  numeric chat id (so the owner can disable/resume any group from PM).
+- `utils.py` — `is_super_admin_command` decorator (only `Config.super_admin_ids()`
+  pass; group admins are blocked). `is_admin_command` also blocks all admin
+  commands in a disabled group unless the caller is the owner.
+- Enforcement points: `bot.handle_all_messages` (top gate), `welcome.py`
+  `handle_new_member_welcome` / `handle_left_member_goodbye` /
+  `handle_service_message` (early return when `db.is_chat_disabled`).
+- Tests: `test_functional.py` covers service-control registration, decorator
+  access control, DB round-trip, DisabledChat queryability, and the message gate.
+- 49 tests total (`pytest test_bot.py test_advanced_bot.py test_functional.py test_url_remover.py`).
+

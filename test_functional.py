@@ -309,6 +309,86 @@ def test_bot_add_auto_sync_registered():
     return True
 
 
+def test_service_controls_registered():
+    """/disable, /resume and /disabledgroups must be registered in bot.main."""
+    import inspect
+    from bot import main
+    src = inspect.getsource(main)
+    assert 'CommandHandler("disable", disable_command)' in src, "/disable not registered"
+    assert 'CommandHandler("resume", resume_command)' in src, "/resume not registered"
+    assert 'CommandHandler("disabledgroups", disabledgroups_command)' in src, "/disabledgroups not registered"
+    print("✅ owner service-control commands registered in bot.main")
+    return True
+
+
+def test_super_admin_decorator_blocks_non_owner():
+    """Only Config.super_admin_ids() may pass the is_super_admin_command decorator."""
+    import asyncio
+    from utils import is_super_admin_command
+
+    async def inner(update, context):
+        return "allowed"
+
+    wrapped = is_super_admin_command(inner)
+    assert wrapped.__name__ == "inner", "functools.wraps missing on is_super_admin_command"
+
+    update = make_update(chat_id=-100123, user_id=42)  # not super admin (id=1)
+    result = asyncio.new_event_loop().run_until_complete(wrapped(update, None))
+    assert result is None, "non-owner was not blocked"
+    update.message.reply_text.assert_called_once()
+
+    update2 = make_update(chat_id=-100123, user_id=1)  # SUPER_ADMIN_ID = '1'
+    result2 = asyncio.new_event_loop().run_until_complete(wrapped(update2, None))
+    assert result2 == "allowed", "owner was blocked"
+    print("✅ is_super_admin_command only permits the bot owner")
+    return True
+
+
+def test_service_controls_db_roundtrip():
+    """disable_chat / is_chat_disabled / enable_chat must persist and round-trip."""
+    from database import db
+    chat_id = -100555
+
+    assert db.is_chat_disabled(chat_id) is False
+    assert db.disable_chat(chat_id, disabled_by=1, reason="testing") is True
+    assert db.is_chat_disabled(chat_id) is True
+    # Disabling again must be idempotent (returns False, still disabled).
+    assert db.disable_chat(chat_id, disabled_by=1, reason="testing") is False
+    assert db.is_chat_disabled(chat_id) is True
+    # Disabled group must appear in the listing.
+    assert any(r.chat_id == chat_id for r in db.get_disabled_chats())
+
+    assert db.enable_chat(chat_id) is True
+    assert db.is_chat_disabled(chat_id) is False
+    assert db.enable_chat(chat_id) is False  # already resumed
+    print("✅ disable_chat / enable_chat / is_chat_disabled round-trip correctly")
+    return True
+
+
+def test_disabled_chat_model_registered():
+    """DisabledChat must be exposed on db and be queryable."""
+    from database import db, DisabledChat
+    assert db.DisabledChat is DisabledChat, "db.DisabledChat not exposed"
+    session = db.get_session()
+    try:
+        session.query(DisabledChat).all()  # must not raise
+    finally:
+        session.close()
+    print("✅ DisabledChat model exposed and queryable")
+    return True
+
+
+def test_message_pipeline_respects_disabled_gate():
+    """handle_all_messages must short-circuit when the chat is disabled."""
+    import inspect
+    from bot import handle_all_messages
+    src = inspect.getsource(handle_all_messages)
+    assert "is_chat_disabled" in src, "message pipeline missing disabled-chat gate"
+    assert "Config.super_admin_ids()" in src, "disabled gate does not exempt super admin"
+    print("✅ handle_all_messages gated on disabled-chat state")
+    return True
+
+
 def main():
     tests = [
         test_db_model_attributes,
@@ -331,6 +411,11 @@ def main():
         test_warn_mode_roundtrip,
         test_del_spurge_commands_registered,
         test_bot_add_auto_sync_registered,
+        test_service_controls_registered,
+        test_super_admin_decorator_blocks_non_owner,
+        test_service_controls_db_roundtrip,
+        test_disabled_chat_model_registered,
+        test_message_pipeline_respects_disabled_gate,
     ]
     passed = 0
     for t in tests:

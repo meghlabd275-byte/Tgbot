@@ -94,6 +94,23 @@ class Whitelist(Base):
     is_global = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
 
+class DisabledChat(Base):
+    """Group-level kill-switch controlled exclusively by the bot owner.
+
+    When a chat is present in this table, the bot stops servicing that group
+    entirely (messages, joins/leaves, captchas, filters, moderation commands,
+    federations, reports, ...). Only the bot owner (super admin) can disable or
+    resume a group; group admins cannot resume a disabled group.
+    """
+    __tablename__ = 'disabled_chats'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    chat_id = Column(BigInteger, nullable=False, unique=True, index=True)
+    disabled_by = Column(BigInteger)
+    reason = Column(Text)
+    scope = Column(String(16), default='all')  # reserved: 'all' (all services)
+    created_at = Column(DateTime, default=func.now())
+
 class DatabaseManager:
     def __init__(self, database_url: str = None):
         self.database_url = database_url or Config.DATABASE_URL
@@ -135,6 +152,7 @@ class DatabaseManager:
         self.Warning = Warning
         self.Mute = Mute
         self.Whitelist = Whitelist
+        self.DisabledChat = DisabledChat
         self.Base = Base
 
     def _create_all(self):
@@ -276,6 +294,66 @@ class DatabaseManager:
             if not chat:
                 return {'limit': Config.MAX_WARNINGS, 'mode': 'ban'}
             return {'limit': Config.MAX_WARNINGS, 'mode': chat.warn_mode or 'ban'}
+        finally:
+            session.close()
+
+    # ------------------------------------------------------------------
+    # Owner kill-switch: disable / resume all bot services per group.
+    # Only the bot owner (super admin) may call these; see the super-admin
+    # command decorator in utils.py.
+    # ------------------------------------------------------------------
+
+    def disable_chat(self, chat_id: int, disabled_by: int, reason: str = None) -> bool:
+        """Disable ALL bot services in `chat_id`. Returns False if already disabled."""
+        session = self.get_session()
+        try:
+            existing = session.query(DisabledChat).filter(DisabledChat.chat_id == chat_id).first()
+            if existing:
+                if reason and existing.reason != reason:
+                    existing.reason = reason
+                    session.commit()
+                return False
+            session.add(DisabledChat(chat_id=chat_id, disabled_by=disabled_by, reason=reason))
+            session.commit()
+            return True
+        finally:
+            session.close()
+
+    def enable_chat(self, chat_id: int) -> bool:
+        """Resume ALL bot services in `chat_id`. Returns True if it was disabled."""
+        session = self.get_session()
+        try:
+            rows = session.query(DisabledChat).filter(DisabledChat.chat_id == chat_id).all()
+            if not rows:
+                return False
+            for row in rows:
+                session.delete(row)
+            session.commit()
+            return True
+        finally:
+            session.close()
+
+    def is_chat_disabled(self, chat_id: int) -> bool:
+        """True if the bot is disabled (kill-switched) for this chat."""
+        session = self.get_session()
+        try:
+            return session.query(DisabledChat).filter(DisabledChat.chat_id == chat_id).first() is not None
+        finally:
+            session.close()
+
+    def get_disabled_chats(self) -> list:
+        """Return the list of disabled chats (each an ORM object)."""
+        session = self.get_session()
+        try:
+            return session.query(DisabledChat).order_by(DisabledChat.created_at.desc()).all()
+        finally:
+            session.close()
+
+    def disabled_chat_count(self) -> int:
+        """Number of groups whose services are currently disabled."""
+        session = self.get_session()
+        try:
+            return session.query(DisabledChat).count()
         finally:
             session.close()
 

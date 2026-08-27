@@ -38,6 +38,15 @@ A comprehensive Telegram bot for advanced group management and moderation, built
 - ✅ Cross-chat admin status checking
 - ✅ Scammer protection warnings
 
+### 🛑 Owner Service Controls (super admin only)
+- ✅ `/disable` / `/disableservices` `[chat_id]` — owner disables ALL bot services in any group
+- ✅ `/resume` / `/resumeservices` `[chat_id]` — only the owner can resume a disabled group
+- ✅ `/disabledgroups` — list all groups with services currently disabled
+- ✅ Persisted in the `disabled_chats` table (SQLite / PostgreSQL / MySQL)
+- ✅ Enforced in the message pipeline, join/leave handlers, service-message handler,
+  and the admin-command permission decorator
+- ✅ Group admins **cannot** disable or resume — this is owner-only
+
 ### Additional Features (Bonus)
 - ✅ `/help` - Complete command reference
 - ✅ `/start` - Welcome and setup guide
@@ -80,7 +89,7 @@ A comprehensive Telegram bot for advanced group management and moderation, built
 ### Quick Start
 ```bash
 # 1. Clone and setup
-git clone https://github.com/shahrukh275/Telegram-Bot-.git
+git clone https://github.com/meghlabd275-byte/Tgbot.git
 cd Telegram-Bot-
 pip install -r requirements.txt
 

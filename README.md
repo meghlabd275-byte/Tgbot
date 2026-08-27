@@ -34,11 +34,19 @@ A comprehensive Telegram bot for advanced group management and moderation with e
 - **Silent Actions**: Discrete moderation without notifications
 - **Anti-Spam Protection**: Basic flood and spam detection
 
+### 🛑 Owner Service Controls (super admin only)
+- **`/disable` / `/disableservices`** — the bot owner can disable **all** bot services in any group
+- **`/resume` / `/resumeservices`** — the owner (and only the owner) can resume a disabled group
+- **`/disabledgroups`** — list every group whose services are currently disabled
+- Disabling is persisted in the database and enforced across messages, joins/leaves,
+  captchas, filters, notes, custom commands, reports and moderation commands.
+- Group admins **cannot** disable or resume — this control belongs exclusively to the bot owner.
+
 ## Installation
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/shahrukh275/Telegram-Bot-.git
+   git clone https://github.com/meghlabd275-byte/Tgbot.git
    cd Telegram-Bot-
    ```
 

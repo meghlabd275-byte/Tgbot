@@ -117,6 +117,10 @@ from handlers.approvals import (
     unapproveall_command, ignore_command, unignore_command, ignored_command
 )
 
+from handlers.services import (
+    disable_command, resume_command, disabledgroups_command
+)
+
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -127,6 +131,16 @@ logger = logging.getLogger(__name__)
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Combined message handler for all filters and checks"""
     try:
+        # Owner kill-switch: when the group is disabled, the bot must not act
+        # on any message (no filters, no flood checks, no notes, no custom
+        # commands, no moderation). Super admin messages are the only exception
+        # so the owner can still run /resume from inside the disabled group.
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        if chat_id is not None and db.is_chat_disabled(chat_id):
+            user_id = update.effective_user.id if update.effective_user else None
+            if user_id not in Config.super_admin_ids():
+                return
+
         # For edited messages, only run the filter pipeline (URL remover, word/
         # URL / spam / media filters) so users can't bypass them by editing a
         # message after it passes initial checks. Skip the rest of the pipeline.
@@ -351,6 +365,13 @@ def main():
         application.add_handler(CommandHandler("ignore", ignore_command))
         application.add_handler(CommandHandler("unignore", unignore_command))
         application.add_handler(CommandHandler("ignored", ignored_command))
+
+        # Owner-only service controls (disable / resume / list disabled groups)
+        application.add_handler(CommandHandler("disable", disable_command))
+        application.add_handler(CommandHandler("disableservices", disable_command))
+        application.add_handler(CommandHandler("resume", resume_command))
+        application.add_handler(CommandHandler("resumeservices", resume_command))
+        application.add_handler(CommandHandler("disabledgroups", disabledgroups_command))
         
         # Event handlers
         application.add_handler(MessageHandler(

@@ -130,6 +130,13 @@
 - ✅ Scammer protection warnings
 - ✅ Detailed verification reports
 
+### 🛑 Owner Service Controls (super admin only)
+- ✅ `/disable` / `/disableservices` `[chat_id]` - Owner disables ALL bot services in a group
+- ✅ `/resume` / `/resumeservices` `[chat_id]` - Owner resumes all services (group admins **cannot**)
+- ✅ `/disabledgroups` - Owner lists all groups with services currently disabled
+- ✅ Persisted in the `disabled_chats` table on SQLite / PostgreSQL / MySQL
+- ✅ Enforced across messages, joins/leaves, captchas, filters, notes, custom commands, reports, and moderation commands
+
 ### Help & Information
 - ✅ `/help` - Complete command reference
 - ✅ `/start` - Welcome message and setup guide
@@ -225,10 +232,10 @@
 
 ## 📈 Statistics
 
-- **Total Commands**: 80+ commands
-- **Handler Modules**: 10 specialized modules
-- **Database Tables**: 15+ comprehensive tables
-- **Lines of Code**: 4000+ lines
+- **Total Commands**: 120+ commands
+- **Handler Modules**: 13 specialized modules
+- **Database Tables**: 22+ comprehensive tables
+- **Lines of Code**: 8000+ lines
 - **Features**: 100+ individual features
 - **Documentation**: Complete guides and references
 

@@ -14,7 +14,7 @@ This guide covers different ways to deploy the Telegram Admin Bot.
 
 ```bash
 # Clone the repository
-git clone https://github.com/shahrukh275/Telegram-Bot-.git
+git clone https://github.com/meghlabd275-byte/Tgbot.git
 cd Telegram-Bot-
 
 # Install dependencies
@@ -164,13 +164,17 @@ heroku ps:scale worker=1
 
 ### PostgreSQL (Recommended for Production)
 ```env
-DATABASE_URL=postgresql://user:password@localhost/botdb
+DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/botdb
 ```
 
 ### MySQL
 ```env
-DATABASE_URL=mysql://user:password@localhost/botdb
+DATABASE_URL=mysql+pymysql://user:password@localhost:3306/botdb
 ```
+
+The bot auto-creates all 22+ tables on first run for any backend. Owner service
+controls (`/disable`, `/resume`, `/disabledgroups`) are persisted in the
+`disabled_chats` table and survive restarts on every supported backend.
 
 ## Security Considerations
 

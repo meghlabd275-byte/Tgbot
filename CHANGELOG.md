@@ -2,6 +2,36 @@
 
 All notable changes to the Telegram Admin Bot will be documented in this file.
 
+## [1.4.0] - 2026-08-27
+
+### Added - Owner kill-switch (disable / resume all services)
+- New `disabled_chats` table plus `DatabaseManager.disable_chat` / `enable_chat` /
+  `is_chat_disabled` / `get_disabled_chats` / `disabled_chat_count`.
+- New owner-only commands:
+  - `/disable` (alias `/disableservices`) `[chat_id]` — disable ALL bot services in a group.
+  - `/resume` (alias `/resumeservices`) `[chat_id]` — resume all services (owner only).
+  - `/disabledgroups` — list all groups whose services are currently disabled.
+- New `@is_super_admin_command` decorator: only the bot owner
+  (`SUPER_ADMIN_ID` / `EXTRA_SUPER_ADMIN_IDS`) can run these. Group admins **cannot**
+  resume a disabled group.
+- Enforcement wired into:
+  - `handle_all_messages` (message / filter / note / flood pipeline)
+  - `handle_new_member_welcome`, `handle_left_member_goodbye`, `handle_service_message`
+  - `@is_admin_command` decorator (blocks all admin commands in a disabled group)
+- `silence` and `activate` now use the admin permission decorator (previously
+  unsilenced/unauthorized activation was possible in some cases).
+
+### Changed - Documentation & configuration
+- `.env.example` documents SQLite / PostgreSQL / MySQL URLs and extra owner IDs.
+- All Markdown docs refreshed (README.md, README_COMPLETE.md, FEATURE_LIST.md,
+  ADVANCED_FEATURES.md, API_REFERENCE.md, DEPLOYMENT.md, PROJECT_SUMMARY.md, CHANGELOG.md).
+
+### Tests
+- 6 new tests: owner service-control registration, super-admin decorator access
+  control, disable/resume DB round-trip, DisabledChat model queryability, and
+  message-pipeline gate.
+- Total: 49 tests passing.
+
 ## [1.3.0] - 2026-08-13
 
 ### Enhanced - URL Remove Bot (full parity with @RemoveURLsBot)

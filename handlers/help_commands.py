@@ -164,6 +164,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /connection, /connections - Show current connection
 /reconnect - Re-connect to the last chat
 
+**[Owner] Service Controls (super admin only)**
+/disable, /disableservices [chat_id] - Disable ALL bot services in this (or the given) group
+/resume, /resumeservices [chat_id] - Resume ALL bot services (owner only — group admins cannot)
+/disabledgroups - List all groups whose services are currently disabled
+
 **Admin Verification**
 Forward any message from a user to the bot in private to verify if they are an admin in any chat where the bot is present.
 

@@ -224,6 +224,33 @@ Bot: 📎 File ID: AgACAgIAAxkBAAI...
 2. Bot checks if user is admin in any registered chat
 3. Returns detailed verification report
 
+### Owner Service Control Commands (super admin only)
+
+#### `/disable` (alias `/disableservices`)
+**Description**: Disable ALL bot services in a group.
+**Usage**:
+- `/disable` (in the group to disable)
+- `/disable -100123456789` (disable a specific group by chat ID — super admin can issue this from a PM)
+**Permissions**: Bot owner (super admin) ONLY — group admins **cannot** disable/resume
+**Persistence**: Stored in the `disabled_chats` table on any database backend (SQLite / PostgreSQL / MySQL).
+
+When disabled, the bot stops acting on **all** messages, joins/leaves, captchas,
+filters, notes, custom commands, reports and moderation commands in that group.
+
+#### `/resume` (alias `/resumeservices`)
+**Description**: Resume ALL bot services in a disabled group.
+**Usage**:
+- `/resume` (inside the group to resume)
+- `/resume -100123456789` (resume a specific group by chat ID from a PM)
+**Permissions**: Bot owner (super admin) ONLY. Even group admins cannot resume a
+group that the owner disabled — only the owner can.
+
+#### `/disabledgroups`
+**Description**: List every group whose services are currently disabled, with the
+disabling owner and timestamp.
+**Usage**: `/disabledgroups`
+**Permissions**: Bot owner (super admin) ONLY
+
 ### Help Commands
 
 #### `/help`
@@ -341,6 +368,18 @@ CREATE TABLE whitelist (
 );
 ```
 
+#### `disabled_chats`
+```sql
+CREATE TABLE disabled_chats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id BIGINT NOT NULL UNIQUE,
+    disabled_by BIGINT,
+    reason TEXT,
+    scope VARCHAR(16) DEFAULT 'all',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
 ## Configuration Options
 
 ### Environment Variables
@@ -349,8 +388,9 @@ CREATE TABLE whitelist (
 |----------|----------|---------|-------------|
 | `BOT_TOKEN` | Yes | - | Telegram bot token |
 | `BOT_USERNAME` | Yes | - | Bot username (without @) |
-| `SUPER_ADMIN_ID` | Yes | - | Super admin user ID |
-| `DATABASE_URL` | No | `sqlite:///bot.db` | Database connection URL |
+| `SUPER_ADMIN_ID` | Yes | - | Super admin (bot owner) user ID; comma/space separated lists supported |
+| `EXTRA_SUPER_ADMIN_IDS` | No | - | Additional bot owner user IDs (comma/space separated) |
+| `DATABASE_URL` | No | `sqlite:///bot.db` | Database connection URL (SQLite / PostgreSQL / MySQL) |
 | `LOG_LEVEL` | No | `INFO` | Logging level |
 
 ### Bot Settings
@@ -389,6 +429,21 @@ Add ban record.
 #### `DatabaseManager.remove_ban(user_id, chat_id, is_global)`
 Remove ban record.
 
+#### `DatabaseManager.disable_chat(chat_id, disabled_by, reason)`
+Disable ALL bot services in a group (owner kill-switch). Returns `False` if already disabled.
+
+#### `DatabaseManager.enable_chat(chat_id)`
+Resume ALL bot services in a group. Returns `True` if it was disabled.
+
+#### `DatabaseManager.is_chat_disabled(chat_id)`
+Return `True` if the group's services are currently disabled.
+
+#### `DatabaseManager.get_disabled_chats()`
+Return the list of disabled-chat records.
+
+#### `DatabaseManager.disabled_chat_count()`
+Return the number of currently disabled groups.
+
 ### Utility Functions
 
 #### `get_user_from_message(update, context)`
@@ -406,7 +461,12 @@ Format seconds into human-readable duration.
 ### Decorators
 
 #### `@is_admin_command`
-Ensure command is executed by admin.
+Ensure command is executed by admin. Also blocks all admin commands in a group
+whose services have been disabled by the owner (except for the owner).
+
+#### `@is_super_admin_command`
+Ensure command is executed only by the bot owner (`SUPER_ADMIN_ID` /
+`EXTRA_SUPER_ADMIN_IDS`). Group admins are **not** permitted.
 
 #### `@is_group_command`
 Ensure command is used in group chat.

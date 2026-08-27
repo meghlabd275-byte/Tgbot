@@ -126,9 +126,20 @@ def is_admin_command(func):
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from database import db
+        from config import Config
 
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
+
+        # Owner kill-switch: if this group's services are disabled, block every
+        # admin command for group admins. Only the bot owner (super admin) can
+        # still act (e.g. /resume from inside the disabled group).
+        if db.is_chat_disabled(chat_id) and user_id not in Config.super_admin_ids():
+            await update.message.reply_text(
+                "🛑 This group's bot services are disabled by the bot owner. "
+                "Only the owner can resume them."
+            )
+            return None
 
         # Fall back to Telegram's own admin list when the bot's admin
         # database is empty (e.g. bot was just added to a new group).
@@ -140,7 +151,7 @@ def is_admin_command(func):
                 db.add_admin(user_id, chat_id)
             else:
                 await update.message.reply_text("❌ You need to be an admin to use this command.")
-                return
+                return None
 
         return await func(update, context)
 
@@ -156,6 +167,27 @@ def is_group_command(func):
         
         return await func(update, context)
     
+    return wrapper
+
+def is_super_admin_command(func):
+    """Decorator: only the bot owner (super admin) can run this command.
+
+    This is intentionally stricter than `is_admin_command`: group admins canNOT
+    use owner-only commands (e.g. disabling/resuming a group's services).
+    """
+    @functools.wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        from config import Config
+
+        user_id = update.effective_user.id
+        if user_id in Config.super_admin_ids():
+            return await func(update, context)
+
+        await update.message.reply_text(
+            "❌ This command is reserved for the bot owner (super admin)."
+        )
+        return None
+
     return wrapper
 
 def is_owner_command(func):

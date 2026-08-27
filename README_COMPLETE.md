@@ -22,7 +22,7 @@
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/shahrukh275/Telegram-Bot-.git
+git clone https://github.com/meghlabd275-byte/Tgbot.git
 cd Telegram-Bot-
 
 # 2. Install dependencies
@@ -172,6 +172,13 @@ python web_dashboard.py
 - Scammer protection warnings
 - Detailed verification reports
 
+### 🛑 Owner Service Controls (super admin only)
+- `/disable` / `/disableservices` `[chat_id]` - Owner disables ALL bot services in a group
+- `/resume` / `/resumeservices` `[chat_id]` - Owner resumes all services (group admins **cannot**)
+- `/disabledgroups` - List all groups whose services are currently disabled
+- Persisted in the `disabled_chats` table on SQLite / PostgreSQL / MySQL
+- Enforced across messages, joins/leaves, captchas, filters, notes, custom commands, reports, and moderation commands
+
 ### ❓ Help & Information
 - `/help` - Complete command reference
 - `/start` - Welcome message and setup guide
@@ -259,7 +266,7 @@ python web_dashboard.py
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/shahrukh275/Telegram-Bot-.git
+   git clone https://github.com/meghlabd275-byte/Tgbot.git
    cd Telegram-Bot-
    ```
 
@@ -357,7 +364,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-- **Issues**: [GitHub Issues](https://github.com/shahrukh275/Telegram-Bot-/issues)
+- **Issues**: [GitHub Issues](https://github.com/meghlabd275-byte/Tgbot/issues)
 - **Documentation**: [Complete Docs](README.md)
 - **Examples**: Check the `examples/` directory
 

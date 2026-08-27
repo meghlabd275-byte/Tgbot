@@ -22,6 +22,7 @@ async def fileid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ No media file found in the replied message.")
 
+@is_admin_command
 @is_group_command
 async def activate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Register the current chat and sync all of its admins into the bot."""
@@ -118,7 +119,8 @@ async def warnmode_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(response, parse_mode='Markdown')
 
 
-
+@is_admin_command
+@is_group_command
 async def silence_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Silence the chat - only admins can speak"""
     chat_id = update.effective_chat.id
@@ -127,6 +129,9 @@ async def silence_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         chat = session.query(db.Chat).filter(db.Chat.id == chat_id).first()
         if chat:
+            if chat.is_silenced:
+                await update.message.reply_text("🔇 Chat is already silenced.")
+                return
             chat.is_silenced = True
             session.commit()
             await update.message.reply_text("🔇 Chat has been silenced. Only admins can speak now.")
