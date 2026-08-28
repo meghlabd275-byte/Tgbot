@@ -4,12 +4,14 @@ Optional web dashboard for monitoring the Telegram Admin Bot
 Run this separately from the main bot for monitoring purposes.
 """
 
+import logging
 import os
 import sys
 from datetime import datetime
-from flask import Flask, render_template_string, jsonify
+
+from flask import Flask, jsonify, render_template_string
+
 from database import db
-import logging
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -51,7 +53,7 @@ DASHBOARD_TEMPLATE = """
         function refreshData() {
             location.reload();
         }
-        
+
         // Auto-refresh every 30 seconds
         setInterval(refreshData, 30000);
     </script>
@@ -59,12 +61,12 @@ DASHBOARD_TEMPLATE = """
 <body>
     <div class="container">
         <h1>🤖 Telegram Admin Bot Dashboard</h1>
-        
+
         <div class="refresh">
             <button class="btn" onclick="refreshData()">🔄 Refresh</button>
             <small>Last updated: {{ current_time }}</small>
         </div>
-        
+
         <div class="card">
             <h2>📊 Statistics</h2>
             <div class="stats">
@@ -94,7 +96,7 @@ DASHBOARD_TEMPLATE = """
                 </div>
             </div>
         </div>
-        
+
         <div class="card">
             <h2>💬 Recent Chats</h2>
             <table class="table">
@@ -130,7 +132,7 @@ DASHBOARD_TEMPLATE = """
                 </tbody>
             </table>
         </div>
-        
+
         <div class="card">
             <h2>🚫 Recent Bans</h2>
             <table class="table">
@@ -162,7 +164,7 @@ DASHBOARD_TEMPLATE = """
                 </tbody>
             </table>
         </div>
-        
+
         <div class="card">
             <h2>⚠️ Recent Warnings</h2>
             <table class="table">
@@ -194,7 +196,7 @@ DASHBOARD_TEMPLATE = """
                 </tbody>
             </table>
         </div>
-        
+
         <div class="card">
             <h2>👥 Bot Admins</h2>
             <table class="table">
@@ -223,30 +225,31 @@ DASHBOARD_TEMPLATE = """
 </html>
 """
 
-@app.route('/')
+
+@app.route("/")
 def dashboard():
     """Main dashboard page"""
     try:
         session = db.get_session()
-        
+
         # Get statistics
         stats = {
-            'total_chats': session.query(db.Chat).count(),
-            'active_chats': session.query(db.Chat).filter(db.Chat.is_active == True).count(),
-            'total_users': session.query(db.User).count(),
-            'total_admins': session.query(db.Admin).count(),
-            'total_bans': session.query(db.Ban).count(),
-            'global_bans': session.query(db.Ban).filter(db.Ban.is_global == True).count(),
+            "total_chats": session.query(db.Chat).count(),
+            "active_chats": session.query(db.Chat).filter(db.Chat.is_active == True).count(),
+            "total_users": session.query(db.User).count(),
+            "total_admins": session.query(db.Admin).count(),
+            "total_bans": session.query(db.Ban).count(),
+            "global_bans": session.query(db.Ban).filter(db.Ban.is_global == True).count(),
         }
-        
+
         # Get recent data
         recent_chats = session.query(db.Chat).order_by(db.Chat.created_at.desc()).limit(10).all()
         recent_bans = session.query(db.Ban).order_by(db.Ban.created_at.desc()).limit(10).all()
         recent_warnings = session.query(db.Warning).order_by(db.Warning.created_at.desc()).limit(10).all()
         recent_admins = session.query(db.Admin).order_by(db.Admin.created_at.desc()).limit(10).all()
-        
+
         session.close()
-        
+
         return render_template_string(
             DASHBOARD_TEMPLATE,
             stats=stats,
@@ -254,67 +257,60 @@ def dashboard():
             recent_bans=recent_bans,
             recent_warnings=recent_warnings,
             recent_admins=recent_admins,
-            current_time=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            current_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         )
-        
+
     except Exception as e:
         return f"Error loading dashboard: {e}", 500
 
-@app.route('/api/stats')
+
+@app.route("/api/stats")
 def api_stats():
     """API endpoint for statistics"""
     try:
         session = db.get_session()
-        
+
         stats = {
-            'total_chats': session.query(db.Chat).count(),
-            'active_chats': session.query(db.Chat).filter(db.Chat.is_active == True).count(),
-            'total_users': session.query(db.User).count(),
-            'total_admins': session.query(db.Admin).count(),
-            'total_bans': session.query(db.Ban).count(),
-            'global_bans': session.query(db.Ban).filter(db.Ban.is_global == True).count(),
-            'total_warnings': session.query(db.Warning).count(),
-            'total_mutes': session.query(db.Mute).count(),
-            'total_whitelisted': session.query(db.Whitelist).count(),
+            "total_chats": session.query(db.Chat).count(),
+            "active_chats": session.query(db.Chat).filter(db.Chat.is_active == True).count(),
+            "total_users": session.query(db.User).count(),
+            "total_admins": session.query(db.Admin).count(),
+            "total_bans": session.query(db.Ban).count(),
+            "global_bans": session.query(db.Ban).filter(db.Ban.is_global == True).count(),
+            "total_warnings": session.query(db.Warning).count(),
+            "total_mutes": session.query(db.Mute).count(),
+            "total_whitelisted": session.query(db.Whitelist).count(),
         }
-        
+
         session.close()
         return jsonify(stats)
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
-@app.route('/api/health')
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/health")
 def health_check():
     """Health check endpoint"""
     try:
         if db.ping():
-            return jsonify({
-                'status': 'healthy',
-                'timestamp': datetime.now().isoformat(),
-                'database': 'connected'
-            })
-        return jsonify({
-            'status': 'unhealthy',
-            'timestamp': datetime.now().isoformat(),
-            'database': 'disconnected'
-        }), 500
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'timestamp': datetime.now().isoformat(),
-            'error': str(e)
-        }), 500
+            return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat(), "database": "connected"})
+        return jsonify(
+            {"status": "unhealthy", "timestamp": datetime.now().isoformat(), "database": "disconnected"}
+        ), 500
 
-if __name__ == '__main__':
-    # Check if Flask is installed
-    try:
-        import flask
-    except ImportError:
+    except Exception as e:
+        return jsonify({"status": "unhealthy", "timestamp": datetime.now().isoformat(), "error": str(e)}), 500
+
+
+if __name__ == "__main__":
+    # Flask availability check without a hard import.
+    import importlib.util
+
+    if importlib.util.find_spec("flask") is None:
         print("Flask is not installed. Install it with: pip install flask")
         sys.exit(1)
-    
+
     print("🌐 Starting Telegram Bot Dashboard...")
     print("📊 Dashboard will be available at: http://localhost:5000")
     print("🔗 API endpoints:")
@@ -322,5 +318,5 @@ if __name__ == '__main__':
     print("   - Health: http://localhost:5000/api/health")
     print("\n⚠️  Note: This dashboard is for monitoring only.")
     print("   The main bot should be running separately.")
-    
-    app.run(host='0.0.0.0', port=5000, debug=False)
+
+    app.run(host="0.0.0.0", port=5000, debug=False)

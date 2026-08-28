@@ -4,16 +4,17 @@ Functional tests that exercise the actual command logic (not just imports).
 These verify the bugs that were fixed: db.Model attribute access, mute
 permissions, antispam persistence, and new-member security checks.
 """
+
+import asyncio
 import os
 import sys
-import asyncio
 import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-os.environ['BOT_TOKEN'] = '1:fake'
-os.environ['BOT_USERNAME'] = 'fake_bot'
-os.environ['SUPER_ADMIN_ID'] = '1'
+os.environ["BOT_TOKEN"] = "1:fake"
+os.environ["BOT_USERNAME"] = "fake_bot"
+os.environ["SUPER_ADMIN_ID"] = "1"
 
 
 def make_update(chat_id=-100123, user_id=42, is_private=False, args=None, reply_to=None, new_members=None):
@@ -21,7 +22,7 @@ def make_update(chat_id=-100123, user_id=42, is_private=False, args=None, reply_
     update = MagicMock()
     update.effective_chat.id = chat_id
     update.effective_chat.title = "Test Chat"
-    update.effective_chat.type = 'private' if is_private else 'group'
+    update.effective_chat.type = "private" if is_private else "group"
     update.effective_user.id = user_id
     update.effective_user.first_name = "Tester"
     update.effective_user.last_name = None
@@ -58,9 +59,10 @@ def make_context(chat_id=-100123, args=None):
 def test_db_model_attributes():
     """db.Chat, db.Admin etc. must be queryable model classes (was AttributeError)."""
     from database import db
+
     session = db.get_session()
     try:
-        for model_name in ['Chat', 'User', 'Admin', 'Ban', 'Warning', 'Mute', 'Whitelist']:
+        for model_name in ["Chat", "User", "Admin", "Ban", "Warning", "Mute", "Whitelist"]:
             model = getattr(db, model_name)
             assert model is not None, f"db.{model_name} missing"
             # Must actually execute a query without raising
@@ -77,7 +79,8 @@ def test_db_model_attributes():
 def test_no_duplicate_db_methods():
     """DatabaseManager must not define add_mute/remove_mute/is_muted twice."""
     from database import DatabaseManager
-    for name in ['add_mute', 'remove_mute', 'is_muted', 'add_ban', 'add_warning']:
+
+    for name in ["add_mute", "remove_mute", "is_muted", "add_ban", "add_warning"]:
         # getattr resolves to the final definition; we just ensure it exists once logically
         method = getattr(DatabaseManager, name, None)
         assert method is not None, f"{name} missing"
@@ -88,19 +91,25 @@ def test_no_duplicate_db_methods():
 def test_mute_command_uses_mute_permissions():
     """mute_command must restrict can_send_messages=False (actual mute)."""
     import inspect
+
     from handlers.user_management import mute_command
+
     src = inspect.getsource(inspect.unwrap(mute_command))
-    assert "permissions=context.bot.get_chat(chat_id).permissions" not in src, \
+    assert "permissions=context.bot.get_chat(chat_id).permissions" not in src, (
         "mute_command still uses non-awaited get_chat().permissions"
-    assert "permissions=ChatPermissions(can_send_messages=False)" in src, \
+    )
+    assert "permissions=ChatPermissions(can_send_messages=False)" in src, (
         "mute_command does not restrict message sending"
+    )
     print("✅ mute_command restricts can_send_messages=False")
     return True
 
 
 def test_smute_command_uses_mute_permissions():
     import inspect
+
     from handlers.user_management import smute_command
+
     src = inspect.getsource(inspect.unwrap(smute_command))
     assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
     assert "permissions=ChatPermissions(can_send_messages=False)" in src
@@ -110,7 +119,9 @@ def test_smute_command_uses_mute_permissions():
 
 def test_antiflood_uses_mute_permissions():
     import inspect
+
     from handlers.antiflood import check_flood
+
     src = inspect.getsource(check_flood)
     assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
     assert "permissions=ChatPermissions(can_send_messages=False)" in src
@@ -120,7 +131,9 @@ def test_antiflood_uses_mute_permissions():
 
 def test_filters_apply_action_uses_mute_permissions():
     import inspect
+
     from handlers.filters import apply_filter_action
+
     src = inspect.getsource(apply_filter_action)
     assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
     assert "permissions=ChatPermissions(can_send_messages=False)" in src
@@ -130,7 +143,9 @@ def test_filters_apply_action_uses_mute_permissions():
 
 def test_reports_mute_uses_mute_permissions():
     import inspect
+
     from handlers.reports import handle_report_callback
+
     src = inspect.getsource(handle_report_callback)
     assert "permissions=context.bot.get_chat(chat_id).permissions" not in src
     assert "permissions=ChatPermissions(can_send_messages=False)" in src
@@ -141,7 +156,9 @@ def test_reports_mute_uses_mute_permissions():
 def test_captcha_uses_chatpermissions():
     """Captcha restrict must use ChatPermissions(can_send_messages=False)."""
     import inspect
+
     from handlers.welcome import handle_captcha
+
     src = inspect.getsource(handle_captcha)
     assert "permissions._replace" not in src, "captcha still uses broken ._replace"
     assert "ChatPermissions(can_send_messages=False)" in src
@@ -152,7 +169,9 @@ def test_captcha_uses_chatpermissions():
 def test_antispam_persists():
     """antispam_command must persist the antispam_enabled flag in ChatSettings."""
     import inspect
+
     from handlers.filters import antispam_command
+
     src = inspect.getsource(inspect.unwrap(antispam_command))
     assert "ChatSettings" in src, "antispam_command does not reference ChatSettings"
     assert "antispam_enabled = status" in src, "antispam_command does not set antispam_enabled"
@@ -163,7 +182,9 @@ def test_antispam_persists():
 def test_antispam_gate_in_check_filters():
     """check_message_filters must gate spam patterns on is_antispam_enabled."""
     import inspect
+
     from handlers.filters import check_message_filters
+
     src = inspect.getsource(check_message_filters)
     assert "is_antispam_enabled" in src, "spam patterns not gated on antispam setting"
     print("✅ check_message_filters gates spam patterns on antispam setting")
@@ -173,7 +194,9 @@ def test_antispam_gate_in_check_filters():
 def test_new_member_welcome_has_security_checks():
     """handle_new_member_welcome must include under-attack + global-ban checks + bot-added."""
     import inspect
+
     from handlers.welcome import handle_new_member_welcome
+
     src = inspect.getsource(handle_new_member_welcome)
     assert "under_attack" in src, "under-attack check missing from new-member handler"
     assert "is_banned" in src, "global-ban enforcement missing from new-member handler"
@@ -185,7 +208,9 @@ def test_new_member_welcome_has_security_checks():
 def test_bot_added_handler_not_registered():
     """The broken handle_bot_added_to_chat filter must no longer be registered."""
     import inspect
+
     from bot import main
+
     src = inspect.getsource(main)
     assert "filters.User(user_id=None)" not in src, "broken bot-added filter still registered"
     print("✅ broken handle_bot_added_to_chat filter removed from registrations")
@@ -195,6 +220,7 @@ def test_bot_added_handler_not_registered():
 def test_main_is_sync():
     """main() must be a synchronous function (PTB v20 run_polling pattern)."""
     import bot
+
     assert not asyncio.iscoroutinefunction(bot.main), "bot.main is async (would break run_polling)"
     print("✅ bot.main is synchronous (correct PTB v20 run_polling pattern)")
     return True
@@ -203,10 +229,20 @@ def test_main_is_sync():
 def test_backup_command_imports_models():
     """backup_command must import Note/WordFilter instead of using db.Note/db.WordFilter."""
     import inspect
+
     from handlers.advanced_features import backup_command
+
     src = inspect.getsource(backup_command)
-    assert "from handlers.notes import Note" in src
-    assert "from handlers.filters import WordFilter" in src
+    # isort may merge sibling 'from handlers.X import ...' lines into a
+    # parenthesized list, so check the module-level imports via regex.
+    import re
+
+    assert (
+        re.search(r"from handlers\.notes import \((?:[\w,\s]+)Note[,()\s]", src)
+        or "from handlers.notes import Note" in src
+    )
+    assert re.search(r"from handlers\.filters import", src)
+    assert re.search(r"\bWordFilter\b", src)
     assert "db.Note" not in src and "db.WordFilter" not in src
     print("✅ backup_command imports Note/WordFilter directly")
     return True
@@ -215,6 +251,7 @@ def test_backup_command_imports_models():
 def test_db_query_in_handlers_runs():
     """Exercise real db queries that handlers perform (db.Chat, db.Admin, db.Ban, etc.)."""
     from database import db
+
     db.get_or_create_chat(-100999, "Func Chat")
     db.get_or_create_user(555, "u555", "User", "Five")
     db.add_admin(555, -100999)
@@ -233,7 +270,8 @@ def test_db_query_in_handlers_runs():
 
 
 def test_is_admin_logic():
-    from database import db, Config
+    from database import Config, db
+
     db.get_or_create_chat(-100998, "Admin Chat")
     assert db.is_admin(Config.SUPER_ADMIN_ID, -100998) is True
     assert db.is_admin(777, -100998) is False
@@ -248,12 +286,14 @@ def test_is_admin_logic():
 def test_federation_models_defined_once():
     """Federation tables must only be declared in handlers.federations."""
     import handlers.advanced_features as af
-    af_src = __import__('inspect').getsource(af)
+
+    af_src = __import__("inspect").getsource(af)
     assert "class Federation(" not in af_src, "duplicate Federation model still in advanced_features"
     assert "class FederationBan(" not in af_src, "duplicate FederationBan model still in advanced_features"
 
-    from handlers.federations import Federation, FederationAdmin, FederationChat, FederationBan, FederationMute
     from database import db
+    from handlers.federations import Federation, FederationAdmin, FederationBan, FederationChat, FederationMute
+
     session = db.get_session()
     try:
         for model in [Federation, FederationAdmin, FederationChat, FederationBan, FederationMute]:
@@ -267,13 +307,14 @@ def test_federation_models_defined_once():
 def test_warn_mode_roundtrip():
     """warn_mode must persist per-chat and round-trip through get_warn_settings."""
     from database import db
+
     chat_id = -100777
     db.get_or_create_chat(chat_id, "Warn Chat")
-    db.set_warn_mode(chat_id, 'kick')
+    db.set_warn_mode(chat_id, "kick")
     settings = db.get_warn_settings(chat_id)
-    assert settings['mode'] == 'kick', f"warn_mode did not persist: {settings}"
-    db.set_warn_mode(chat_id, 'tban')
-    assert db.get_warn_settings(chat_id)['mode'] == 'tban'
+    assert settings["mode"] == "kick", f"warn_mode did not persist: {settings}"
+    db.set_warn_mode(chat_id, "tban")
+    assert db.get_warn_settings(chat_id)["mode"] == "tban"
     print("✅ warn_mode persists and round-trips per chat")
     return True
 
@@ -281,12 +322,15 @@ def test_warn_mode_roundtrip():
 def test_del_spurge_commands_registered():
     """/del and /spurge must be registered and use awaited delete_message."""
     import inspect
+
     from bot import _register_handlers
+
     src = inspect.getsource(_register_handlers)
     assert 'CommandHandler("del", del_command)' in src, "del command not registered"
     assert 'CommandHandler("spurge", spurge_command)' in src, "spurge command not registered"
 
     from handlers.admin_commands import del_command, spurge_command
+
     del_src = inspect.getsource(del_command)
     assert "await context.bot.delete_message" in del_src
     print("✅ /del and /spurge registered and use awaited delete_message")
@@ -296,12 +340,15 @@ def test_del_spurge_commands_registered():
 def test_bot_add_auto_sync_registered():
     """Bot's own membership handler must be registered with MY_CHAT_MEMBER."""
     import inspect
+
     from bot import _register_handlers
+
     src = inspect.getsource(_register_handlers)
     assert "ChatMemberHandler.MY_CHAT_MEMBER" in src, "bot membership handler not registered"
     assert "handle_bot_added_to_chat" in src, "handle_bot_added_to_chat not referenced"
 
     from handlers.events import handle_bot_added_to_chat
+
     ev_src = inspect.getsource(handle_bot_added_to_chat)
     assert "sync_telegram_admins" in ev_src, "bot-add does not auto-sync admins"
     print("✅ bot-add auto-syncs admins (MY_CHAT_MEMBER handler)")
@@ -311,7 +358,9 @@ def test_bot_add_auto_sync_registered():
 def test_service_controls_registered():
     """/disable, /resume and /disabledgroups must be registered in bot."""
     import inspect
+
     from bot import _register_handlers
+
     src = inspect.getsource(_register_handlers)
     assert 'CommandHandler("disable", disable_command)' in src, "/disable not registered"
     assert 'CommandHandler("resume", resume_command)' in src, "/resume not registered"
@@ -323,6 +372,7 @@ def test_service_controls_registered():
 def test_super_admin_decorator_blocks_non_owner():
     """Only Config.super_admin_ids() may pass the is_super_admin_command decorator."""
     import asyncio
+
     from utils import is_super_admin_command
 
     async def inner(update, context):
@@ -346,6 +396,7 @@ def test_super_admin_decorator_blocks_non_owner():
 def test_service_controls_db_roundtrip():
     """disable_chat / is_chat_disabled / enable_chat must persist and round-trip."""
     from database import db
+
     chat_id = -100555
 
     assert db.is_chat_disabled(chat_id) is False
@@ -366,7 +417,8 @@ def test_service_controls_db_roundtrip():
 
 def test_disabled_chat_model_registered():
     """DisabledChat must be exposed on db and be queryable."""
-    from database import db, DisabledChat
+    from database import DisabledChat, db
+
     assert db.DisabledChat is DisabledChat, "db.DisabledChat not exposed"
     session = db.get_session()
     try:
@@ -381,7 +433,9 @@ def test_custom_command_fallback_registered():
     """Custom commands (/addcmd) must actually fire: bot.main must register a
     filters.COMMAND MessageHandler that dispatches to handle_custom_command."""
     import inspect
+
     from bot import _register_handlers
+
     src = inspect.getsource(_register_handlers)
     assert "handle_custom_command" in src, "custom command fallback missing"
     assert "filters.COMMAND" in src, "no filters.COMMAND handler for custom commands"
@@ -392,7 +446,9 @@ def test_custom_command_fallback_registered():
 def test_message_pipeline_respects_disabled_gate():
     """handle_all_messages must short-circuit when the chat is disabled."""
     import inspect
+
     from bot import handle_all_messages
+
     src = inspect.getsource(handle_all_messages)
     assert "is_chat_disabled" in src, "message pipeline missing disabled-chat gate"
     assert "Config.super_admin_ids()" in src, "disabled gate does not exempt super admin"
@@ -404,7 +460,9 @@ def test_no_chat_member_status_kicked_reference():
     """ChatMemberStatus.KICKED does not exist in python-telegram-bot; it must
     not be referenced (Telegram reports both bans and kicks as BANNED=='kicked')."""
     import inspect
+
     from handlers import events
+
     src = inspect.getsource(events)
     assert "ChatMemberStatus.KICKED" not in src, "events.py references non-existent ChatMemberStatus.KICKED"
     print("✅ events.py no longer references the non-existent ChatMemberStatus.KICKED")
@@ -416,7 +474,9 @@ def test_bot_added_announcement_single_source():
     MY_CHAT_MEMBER handler must register/sync the chat but NOT re-announce
     (otherwise the bot greets the group twice, and again on every status change)."""
     import inspect
+
     from handlers.events import handle_bot_added_to_chat
+
     ev_src = inspect.getsource(handle_bot_added_to_chat)
     assert "sync_telegram_admins" in ev_src, "bot-add handler must still sync admins"
     assert "send_message" not in ev_src, "MY_CHAT_MEMBER handler announces a duplicate welcome"
@@ -427,9 +487,12 @@ def test_bot_added_announcement_single_source():
 def test_reports_autodelete_subcommand():
     """/reports autodelete on|off must be implemented and alter ReportSettings."""
     import inspect
+
     from handlers.reports import reports_command
+
     src = inspect.getsource(reports_command)
-    assert "'autodelete'" in src, "/reports autodelete subcommand missing"
+    # quote-style is format-independent
+    assert "autodelete" in src, "/reports autodelete subcommand missing"
     assert "auto_delete_reports" in src, "autodelete does not persist ReportSettings.auto_delete_reports"
     print("✅ /reports autodelete on|off implemented")
     return True
@@ -480,6 +543,7 @@ def main():
         except Exception as e:
             print(f"❌ {t.__name__} failed: {e}")
             import traceback
+
             traceback.print_exc()
     print("\n" + "=" * 50)
     print(f"📊 Functional tests: {passed}/{len(tests)} passed")
@@ -489,11 +553,17 @@ def main():
 def test_quick_replies_tables_and_commands():
     """Quick-reply tables exist and their command handlers are registered in bot.py."""
     import inspect
+
     from handlers.quick_replies import (
-        ContractAddress, KeywordLink, GreetingFilter,
-        setcontract_command, setkeywordlink_command, greetingfilter_command,
+        ContractAddress,
+        GreetingFilter,
+        KeywordLink,
+        greetingfilter_command,
         handle_quick_replies,
+        setcontract_command,
+        setkeywordlink_command,
     )
+
     for model in (ContractAddress, KeywordLink, GreetingFilter):
         assert model.__tablename__, f"{model.__name__} has no table name"
     assert callable(handle_quick_replies)
@@ -502,6 +572,7 @@ def test_quick_replies_tables_and_commands():
     assert callable(greetingfilter_command)
 
     import bot as bot_module
+
     src = inspect.getsource(bot_module)
     for cmd in ("setcontract", "setkeywordlink", "greetingfilter", "setwelcomebutton", "welcomedelete"):
         assert cmd in src, f"Command {cmd} not registered in bot.py"
@@ -517,23 +588,31 @@ def test_contract_address_lookup():
     update.message.text = "ca"
     context = make_context(chat_id=-100999)
 
-    with patch.object(qr, 'get_contract_addresses', return_value=[
-        ('Arbitrum', '0xABC'),
-        ('Solana', 'xLDEF'),
-        ('TON', 'Clj...'),
-    ]), patch.object(qr.db, 'is_admin', return_value=False), \
-         patch.object(qr.db, 'is_whitelisted', return_value=False), \
-         patch.object(qr.db, 'is_approved', return_value=False), \
-         patch.object(qr, '_greeting_filter_enabled', return_value=False):
+    with (
+        patch.object(
+            qr,
+            "get_contract_addresses",
+            return_value=[
+                ("Arbitrum", "0xABC"),
+                ("Solana", "xLDEF"),
+                ("TON", "Clj..."),
+            ],
+        ),
+        patch.object(qr.db, "is_admin", return_value=False),
+        patch.object(qr.db, "is_whitelisted", return_value=False),
+        patch.object(qr.db, "is_approved", return_value=False),
+        patch.object(qr, "_greeting_filter_enabled", return_value=False),
+    ):
         # Run under asyncio.
         import asyncio
+
         result = asyncio.run(qr.handle_quick_replies(update, context))
 
     assert result is True
     update.message.reply_text.assert_called_once()
     text = update.message.reply_text.call_args[0][0]
-    assert 'Arbitrum' in text and 'Solana' in text and 'TON' in text
-    assert '0xABC' in text and 'xLDEF' in text and 'Clj...' in text
+    assert "Arbitrum" in text and "Solana" in text and "TON" in text
+    assert "0xABC" in text and "xLDEF" in text and "Clj..." in text
     print("✅ contract-address lookup works")
     return True
 
@@ -546,19 +625,27 @@ def test_keyword_link_lookup():
     update.message.text = "Hi, do you have a website link?"
     context = make_context(chat_id=-100999)
 
-    with patch.object(qr, 'get_contract_addresses', return_value=[]), \
-         patch.object(qr, 'get_keyword_links', return_value=[
-             ('website', 'Visit our site', 'https://example.com'),
-         ]), patch.object(qr.db, 'is_admin', return_value=False), \
-         patch.object(qr.db, 'is_whitelisted', return_value=False), \
-         patch.object(qr.db, 'is_approved', return_value=False), \
-         patch.object(qr, '_greeting_filter_enabled', return_value=False):
+    with (
+        patch.object(qr, "get_contract_addresses", return_value=[]),
+        patch.object(
+            qr,
+            "get_keyword_links",
+            return_value=[
+                ("website", "Visit our site", "https://example.com"),
+            ],
+        ),
+        patch.object(qr.db, "is_admin", return_value=False),
+        patch.object(qr.db, "is_whitelisted", return_value=False),
+        patch.object(qr.db, "is_approved", return_value=False),
+        patch.object(qr, "_greeting_filter_enabled", return_value=False),
+    ):
         import asyncio
+
         result = asyncio.run(qr.handle_quick_replies(update, context))
 
     assert result is True
     update.message.reply_text.assert_called_once()
-    assert update.message.reply_text.call_args[1].get('reply_markup') is not None
+    assert update.message.reply_text.call_args[1].get("reply_markup") is not None
     print("✅ keyword-link lookup works")
     return True
 
@@ -566,7 +653,9 @@ def test_keyword_link_lookup():
 def test_smute_command_has_no_dead_get_chat():
     """smute_command must not contain the dead `chat = await context.bot.get_chat(...)` call."""
     import inspect
+
     from handlers.user_management import smute_command
+
     src = inspect.getsource(smute_command)
     assert "chat = await context.bot.get_chat(chat_id)" not in src
     print("✅ smute_command has no dead get_chat call")
@@ -576,12 +665,17 @@ def test_smute_command_has_no_dead_get_chat():
 def test_welcome_columns_and_commands():
     """WelcomeSettings exposes button + auto-delete columns and commands exist."""
     import inspect
+
     from handlers.welcome import (
-        WelcomeSettings, setwelcomebutton_command, welcomedelete_command,
-        _build_welcome_keyboard, send_welcome_message,
+        WelcomeSettings,
+        _build_welcome_keyboard,
+        send_welcome_message,
+        setwelcomebutton_command,
+        welcomedelete_command,
     )
+
     cols = {c.name for c in WelcomeSettings.__table__.columns}
-    for col in ('welcome_button_text', 'welcome_button_url', 'can_delete_welcome'):
+    for col in ("welcome_button_text", "welcome_button_url", "can_delete_welcome"):
         assert col in cols, f"missing column {col}"
     assert callable(_build_welcome_keyboard)
     assert callable(setwelcomebutton_command)
@@ -595,5 +689,5 @@ def test_welcome_columns_and_commands():
     return True
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

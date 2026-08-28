@@ -20,11 +20,12 @@ The super-admin identity comes from ``Config.super_admin_ids()`` (set via
 SUPER_ADMIN_ID / EXTRA_SUPER_ADMIN_IDS in the environment). Because clone bots
 share the same process, the same owner id list applies fleet-wide.
 """
+
 import logging
 import re
 from datetime import datetime
 
-from telegram import Update, Bot
+from telegram import Bot, Update
 from telegram.ext import ContextTypes, ConversationHandler
 
 from config import Config
@@ -47,15 +48,15 @@ def is_owner(update: Update) -> bool:
 
 
 def is_owner_chat(update: Update) -> bool:
-    return is_owner(update) and update.effective_chat.type == 'private'
+    return is_owner(update) and update.effective_chat.type == "private"
 
 
 def parse_bot_token(token: str) -> bool:
     """Very basic shape check: '<digits>:<anything>'."""
-    token = (token or '').strip()
+    token = (token or "").strip()
     if not token:
         return False
-    match = re.match(r'^(\d+):[A-Za-z0-9_\-]+$', token)
+    match = re.match(r"^(\d+):[A-Za-z0-9_\-]+$", token)
     return bool(match)
 
 
@@ -65,11 +66,11 @@ def normalize_username(username: str) -> str:
     Only the FINAL '@' prefix and a literal 't.me/' prefix are removed so the
     username itself is never mangled (e.g. '@MysBot' stays 'mysbot').
     """
-    username = (username or '').strip().lower()
-    if username.startswith('t.me/'):
-        username = username[len('t.me/'):]
+    username = (username or "").strip().lower()
+    if username.startswith("t.me/"):
+        username = username[len("t.me/") :]
     # Strip a single leading '@' (in case multiple were pasted).
-    while username.startswith('@'):
+    while username.startswith("@"):
         username = username[1:]
     return username
 
@@ -93,10 +94,10 @@ def _format_member_count(count: int) -> str:
 
 def _status_emoji(status: str) -> str:
     return {
-        'active': '🟢',
-        'paused': '🟡',
-        'disabled': '🔴',
-    }.get(status or 'disabled', '⚪')
+        "active": "🟢",
+        "paused": "🟡",
+        "disabled": "🔴",
+    }.get(status or "disabled", "⚪")
 
 
 async def _resolve_bot_me(token: str):
@@ -113,14 +114,11 @@ async def _resolve_bot_me(token: str):
         return None, None
 
 
-def _format_clone_row(row, runtime_status: str = None) -> str:
-    status = row.status or 'disabled'
+def _format_clone_row(row, runtime_status: str | None = None) -> str:
+    status = row.status or "disabled"
     if runtime_status:
         status = runtime_status
-    name = row.display_name or row.username
-    return (
-        f"{_status_emoji(status)} `{row.id}` · @{row.username} · {status}"
-    )
+    return f"{_status_emoji(status)} `{row.id}` · @{row.username} · {status}"
 
 
 # ---------------------------------------------------------------------------
@@ -131,14 +129,13 @@ def _format_clone_row(row, runtime_status: str = None) -> str:
 async def clone_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner_chat(update):
         await update.message.reply_text(
-            f"❌ This command is reserved for the bot owner. Your id:"
-            f" `{update.effective_user.id}`"
+            f"❌ This command is reserved for the bot owner. Your id: `{update.effective_user.id}`"
         )
         return ConversationHandler.END
 
     if context.args and parse_bot_token(context.args[0]):
         # Token passed as an argument (e.g. /clone 123:abc).
-        context.user_data['clone_token'] = context.args[0].strip()
+        context.user_data["clone_token"] = context.args[0].strip()
         await update.message.reply_text(
             "🤖 **Clone a new bot — Step 2/2**\n\n"
             "Now send the **bot username** (e.g. `MyGroupHelperBot`, with or "
@@ -158,37 +155,34 @@ async def clone_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _clone_await_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    if text.lower() == '/cancel':
+    if text.lower() == "/cancel":
         await update.message.reply_text("⏹ Clone cancelled.")
         return ConversationHandler.END
     if not parse_bot_token(text):
         await update.message.reply_text(
-            "❌ That doesn't look like a bot token. Format: `123456789:AAH...`\n"
-            "Try again, or send `/cancel` to abort."
+            "❌ That doesn't look like a bot token. Format: `123456789:AAH...`\nTry again, or send `/cancel` to abort."
         )
         return AWAIT_TOKEN
-    context.user_data['clone_token'] = text
-    await update.message.reply_text(
-        "🤖 **Step 2/2** — now send the **bot username** (e.g. `MyGroupHelperBot`)."
-    )
+    context.user_data["clone_token"] = text
+    await update.message.reply_text("🤖 **Step 2/2** — now send the **bot username** (e.g. `MyGroupHelperBot`).")
     return AWAIT_USERNAME
 
 
 async def _clone_await_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    if text.lower() == '/cancel':
+    if text.lower() == "/cancel":
         await update.message.reply_text("⏹ Clone cancelled.")
         return ConversationHandler.END
 
     username = normalize_username(text)
-    if not username or not re.match(r'^[A-Za-z0-9_]{3,32}$', username):
+    if not username or not re.match(r"^[A-Za-z0-9_]{3,32}$", username):
         await update.message.reply_text(
             "❌ Invalid username. Bot usernames are 3–32 characters, letters, "
             "digits and underscores. Try again or send `/cancel`."
         )
         return AWAIT_USERNAME
 
-    token = context.user_data.get('clone_token')
+    token = context.user_data.get("clone_token")
     if not token:
         await update.message.reply_text("❌ Session expired. Run `/clone` again.")
         return ConversationHandler.END
@@ -199,8 +193,7 @@ async def _clone_await_username(update: Update, context: ContextTypes.DEFAULT_TY
 
     if bot_id is None:
         await update.message.reply_text(
-            "❌ **Invalid token.** Telegram rejected it. Double-check the token "
-            "from @BotFather and run `/clone` again."
+            "❌ **Invalid token.** Telegram rejected it. Double-check the token from @BotFather and run `/clone` again."
         )
         return ConversationHandler.END
 
@@ -214,8 +207,7 @@ async def _clone_await_username(update: Update, context: ContextTypes.DEFAULT_TY
     # Check it isn't the main bot itself.
     if token == Config.BOT_TOKEN:
         await update.message.reply_text(
-            "❌ That's the **main bot's token**. You cannot clone the main bot "
-            "into itself."
+            "❌ That's the **main bot's token**. You cannot clone the main bot into itself."
         )
         return ConversationHandler.END
 
@@ -225,13 +217,12 @@ async def _clone_await_username(update: Update, context: ContextTypes.DEFAULT_TY
         bot_id=bot_id,
         display_name=None,
         created_by=update.effective_user.id,
-        status='active',
+        status="active",
     )
 
     if not created:
         await update.message.reply_text(
-            f"ℹ️ {real_username or username} is already registered "
-            f"(id `{row.id}`, status: {row.status})."
+            f"ℹ️ {real_username or username} is already registered (id `{row.id}`, status: {row.status})."
         )
     else:
         await update.message.reply_text(
@@ -244,16 +235,14 @@ async def _clone_await_username(update: Update, context: ContextTypes.DEFAULT_TY
 
     # Bring the clone online immediately (live clone — no redeployment).
     from handlers.clonebot import is_clone_running, start_clone
+
     if is_clone_running(row.id):
-        await update.message.reply_text(
-            f"ℹ️ @{real_username or username} is already running live."
-        )
+        await update.message.reply_text(f"ℹ️ @{real_username or username} is already running live.")
     else:
         ok = start_clone(row.id)
         if ok:
             await update.message.reply_text(
-                f"🚀 @{real_username or username} is now **live** with the full "
-                "feature set."
+                f"🚀 @{real_username or username} is now **live** with the full feature set."
             )
         else:
             await update.message.reply_text(
@@ -264,10 +253,9 @@ async def _clone_await_username(update: Update, context: ContextTypes.DEFAULT_TY
     # Re-sync group memberships across the fleet so the new clone sees every
     # group the fleet is already in.
     for membership in db.get_groups_for_bot(0):
-        db.record_fleet_membership(membership.chat_id, membership.chat_title,
-                                   include_bot_id=row.bot_id)
+        db.record_fleet_membership(membership.chat_id, membership.chat_title, include_bot_id=row.bot_id)
 
-    del context.user_data['clone_token']
+    del context.user_data["clone_token"]
     return ConversationHandler.END
 
 
@@ -281,7 +269,7 @@ def clone_conversation_handler():
     from telegram.ext import CommandHandler, MessageHandler, filters
 
     return ConversationHandler(
-        entry_points=[CommandHandler('clone', clone_command)],
+        entry_points=[CommandHandler("clone", clone_command)],
         states={
             AWAIT_TOKEN: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, _clone_await_token),
@@ -290,7 +278,7 @@ def clone_conversation_handler():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, _clone_await_username),
             ],
         },
-        fallbacks=[CommandHandler('cancel', _clone_cancel)],
+        fallbacks=[CommandHandler("cancel", _clone_cancel)],
         allow_reentry=True,
     )
 
@@ -313,8 +301,8 @@ async def groups_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     lines = [f"📊 **Fleet-wide group usage ({len(groups)} groups)**\n"]
     for i, g in enumerate(groups, 1):
-        days = _days_between(g['joined_at'])
-        title = g['title'] or 'Untitled group'
+        days = _days_between(g["joined_at"])
+        title = g["title"] or "Untitled group"
         lines.append(f"{i}. {title}")
         lines.append(f"   🆔 `{g['chat_id']}` · 🗓 {days}d · bots: {len(g['bot_ids'])}")
     text = "\n".join(lines)
@@ -333,9 +321,9 @@ async def groups_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if current:
             chunks.append(current)
         for chunk in chunks:
-            await update.message.reply_text(chunk, parse_mode='Markdown')
+            await update.message.reply_text(chunk, parse_mode="Markdown")
     else:
-        await update.message.reply_text(text, parse_mode='Markdown')
+        await update.message.reply_text(text, parse_mode="Markdown")
 
 
 # ---------------------------------------------------------------------------
@@ -349,8 +337,7 @@ async def clone_bots_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     rows = db.get_bot_instances(only_known=True)
     if not rows:
         await update.message.reply_text(
-            "🤖 No clone bots registered yet.\n\n"
-            "Use `/clone` to add one — you only need its bot token and username."
+            "🤖 No clone bots registered yet.\n\nUse `/clone` to add one — you only need its bot token and username."
         )
         return
 
@@ -360,19 +347,18 @@ async def clone_bots_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     for row in rows:
         running = is_clone_running(row.id)
         if running:
-            runtime = '🟢 running'
-        elif row.status == 'active':
-            runtime = '🟢 active (starting…)'
-        elif row.status == 'paused':
-            runtime = '🟡 paused'
+            runtime = "🟢 running"
+        elif row.status == "active":
+            runtime = "🟢 active (starting…)"
+        elif row.status == "paused":
+            runtime = "🟡 paused"
         else:
-            runtime = '🔴 disabled'
-        name = row.display_name or row.username
+            runtime = "🔴 disabled"
         lines.append(f"• `{row.id}` · @{row.username} — {runtime}")
     lines.append("")
     lines.append("Manage: `/bot start|stop|pause|resume|enable|disable <id>`")
 
-    await update.message.reply_text("\n".join(lines), parse_mode='Markdown')
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
 # ---------------------------------------------------------------------------
@@ -404,13 +390,13 @@ async def bot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     action = context.args[0].lower()
-    target = ' '.join(context.args[1:]) if len(context.args) > 1 else None
+    target = " ".join(context.args[1:]) if len(context.args) > 1 else None
 
-    if action == 'status':
+    if action == "status":
         await _bot_status(update, target)
         return
 
-    if action not in ('start', 'stop', 'pause', 'resume', 'enable', 'disable'):
+    if action not in ("start", "stop", "pause", "resume", "enable", "disable"):
         await update.message.reply_text(
             f"❌ Unknown action `{action}`.\n\n"
             "Actions: `start`, `stop`, `pause`, `resume`, `enable`, `disable`, `status`"
@@ -418,9 +404,7 @@ async def bot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not target:
-        await update.message.reply_text(
-            f"❌ Usage: `/bot {action} <id or @username>`"
-        )
+        await update.message.reply_text(f"❌ Usage: `/bot {action} <id or @username>`")
         return
 
     instance = _resolve_instance(target)
@@ -431,11 +415,10 @@ async def bot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     from handlers.clonebot import set_clone_status
+
     ok, message = set_clone_status(instance.id, action)
     emoji = "✅" if ok else "❌"
-    await update.message.reply_text(
-        f"{emoji} @{instance.username} (id `{instance.id}`): {message}."
-    )
+    await update.message.reply_text(f"{emoji} @{instance.username} (id `{instance.id}`): {message}.")
 
 
 def _resolve_instance(target):
@@ -460,12 +443,13 @@ async def _bot_status(update: Update, target):
             await update.message.reply_text("🤖 No clone bots registered yet.")
             return
         from handlers.clonebot import is_clone_running
+
         lines = ["🤖 **Clone status**\n"]
         for row in rows:
             running = is_clone_running(row.id)
-            live = 'running' if running else row.status or 'disabled'
+            live = "running" if running else row.status or "disabled"
             lines.append(f"• `{row.id}` · @{row.username} — {live}")
-        await update.message.reply_text("\n".join(lines), parse_mode='Markdown')
+        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
         return
 
     instance = _resolve_instance(target)
@@ -473,6 +457,7 @@ async def _bot_status(update: Update, target):
         await update.message.reply_text(f"❌ No clone found for `{target}`.")
         return
     from handlers.clonebot import is_clone_running
+
     running = is_clone_running(instance.id)
     lines = [
         f"🤖 **@{instance.username}** (id `{instance.id}`)",
@@ -481,7 +466,7 @@ async def _bot_status(update: Update, target):
         f"• Live: {'✅ running' if running else '❌ not running this process'}",
         f"• Registered: {instance.created_at}",
     ]
-    await update.message.reply_text("\n".join(lines), parse_mode='Markdown')
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
 # ---------------------------------------------------------------------------
@@ -498,19 +483,18 @@ async def botdel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "This removes the clone from the fleet registry (it will stop immediately)."
         )
         return
-    target = ' '.join(context.args)
+    target = " ".join(context.args)
     instance = _resolve_instance(target)
     if instance is None:
         await update.message.reply_text(f"❌ No clone found for `{target}`.")
         return
 
     from handlers.clonebot import is_clone_running, stop_clone
+
     if is_clone_running(instance.id):
-        stop_clone(instance.id, mark='disabled')
+        stop_clone(instance.id, mark="disabled")
     db.delete_bot_instance(instance.id)
-    await update.message.reply_text(
-        f"🗑 @{instance.username} (id `{instance.id}`) was removed from the fleet."
-    )
+    await update.message.reply_text(f"🗑 @{instance.username} (id `{instance.id}`) was removed from the fleet.")
 
 
 # ---------------------------------------------------------------------------
@@ -568,10 +552,10 @@ def _super_admin_commands_doc() -> str:
 # ---------------------------------------------------------------------------
 
 OWNER_COMMANDS = [
-    ('groups', 'List every group using the bot fleet, with days of usage'),
-    ('clone', 'Register a live clone bot (token + username only)'),
-    ('clone_bots', 'List all registered clone bots with live status'),
-    ('bot', 'Control one clone: start/stop/pause/resume/enable/disable/status'),
-    ('botdel', 'Permanently delete a clone from the registry'),
-    ('commands', 'Show the full super-admin command documentation'),
+    ("groups", "List every group using the bot fleet, with days of usage"),
+    ("clone", "Register a live clone bot (token + username only)"),
+    ("clone_bots", "List all registered clone bots with live status"),
+    ("bot", "Control one clone: start/stop/pause/resume/enable/disable/status"),
+    ("botdel", "Permanently delete a clone from the registry"),
+    ("commands", "Show the full super-admin command documentation"),
 ]

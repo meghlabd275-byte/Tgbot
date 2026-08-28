@@ -13,9 +13,10 @@ Usage:
   /connection                                          -> show current connection
   /reconnect                                           -> reconnect to last group
 """
+
 import logging
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from utils import is_telegram_admin
@@ -49,12 +50,12 @@ async def resolve_chat(context: ContextTypes.DEFAULT_TYPE, arg: str):
     if not arg:
         return None
     arg = arg.strip()
-    if arg.startswith('@'):
+    if arg.startswith("@"):
         try:
             return await context.bot.get_chat(arg)
         except Exception:
             return None
-    if arg.lstrip('-').isdigit():
+    if arg.lstrip("-").isdigit():
         try:
             return await context.bot.get_chat(int(arg))
         except Exception:
@@ -67,7 +68,7 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat = update.effective_chat
 
-    if chat.type == 'private':
+    if chat.type == "private":
         if not context.args:
             # Show current connection and recent groups
             current = get_connection(user_id)
@@ -95,18 +96,22 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         pass
                     msg += f"• `{cid}` ({title or 'unknown'})\n"
                 msg += "\n"
-            msg += ("Usage:\n"
-                    "• `/connect <group id or @username>` — connect to a group\n"
-                    "• `/connect` (in the group) — get a connect button\n"
-                    "• `/disconnect` — clear connection\n"
-                    "• `/connection` — show current connection\n"
-                    "• `/reconnect` — reconnect to your last group")
-            await update.message.reply_text(msg, parse_mode='Markdown')
+            msg += (
+                "Usage:\n"
+                "• `/connect <group id or @username>` — connect to a group\n"
+                "• `/connect` (in the group) — get a connect button\n"
+                "• `/disconnect` — clear connection\n"
+                "• `/connection` — show current connection\n"
+                "• `/reconnect` — reconnect to your last group"
+            )
+            await update.message.reply_text(msg, parse_mode="Markdown")
             return
 
         target = await resolve_chat(context, context.args[0])
         if not target:
-            await update.message.reply_text("❌ Could not find that chat. Make sure I'm a member and the ID/username is correct.")
+            await update.message.reply_text(
+                "❌ Could not find that chat. Make sure I'm a member and the ID/username is correct."
+            )
             return
 
         # Verify the user is an admin in that target group
@@ -118,17 +123,16 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"✅ Connected to **{target.title}** (`{target.id}`).\n"
             f"You can now use my admin/settings commands here in private.",
-            parse_mode='Markdown',
+            parse_mode="Markdown",
         )
         return
 
     # Group context: give an inline button to connect
-    keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🔗 Connect to this group", callback_data=f"connect_{chat.id}")
-    ]])
+    keyboard = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🔗 Connect to this group", callback_data=f"connect_{chat.id}")]]
+    )
     await update.message.reply_text(
-        "Press the button below to connect your private chat to this group, "
-        "then manage its settings from private.",
+        "Press the button below to connect your private chat to this group, then manage its settings from private.",
         reply_markup=keyboard,
     )
 
@@ -138,9 +142,9 @@ async def handle_connect_callback(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
 
     data = query.data
-    if not data.startswith('connect_'):
+    if not data.startswith("connect_"):
         return
-    chat_id = int(data.split('_', 1)[1])
+    chat_id = int(data.split("_", 1)[1])
     user_id = query.from_user.id
 
     if not await is_telegram_admin(context, chat_id, user_id):
@@ -173,10 +177,8 @@ async def connection_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception:
         pass
     await update.message.reply_text(
-        f"🔗 **Current connection**\n\n"
-        f"• Group: {title or 'unknown'}\n"
-        f"• ID: `{current}`",
-        parse_mode='Markdown',
+        f"🔗 **Current connection**\n\n• Group: {title or 'unknown'}\n• ID: `{current}`",
+        parse_mode="Markdown",
     )
 
 
@@ -194,8 +196,8 @@ async def reconnect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
             await update.message.reply_text(
-                f"✅ Reconnected to {title or 'group' } (`{cid}`).",
-                parse_mode='Markdown',
+                f"✅ Reconnected to {title or 'group'} (`{cid}`).",
+                parse_mode="Markdown",
             )
             return
     await update.message.reply_text("❌ No previous group found where you are still an admin.")
@@ -209,7 +211,7 @@ def get_effective_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     commands to that connected group. Otherwise use the effective chat.
     """
     chat = update.effective_chat
-    if chat.type == 'private':
+    if chat.type == "private":
         connected = get_connection(update.effective_user.id)
         if connected:
             return connected

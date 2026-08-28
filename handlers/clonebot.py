@@ -12,12 +12,11 @@ Status model (stored in the ``bot_instances`` table):
     paused     — the application exists but polling is stopped; can be resumed.
     disabled   — the app was shut down; must be enabled (or started) first.
 """
+
 import asyncio
 import logging
 import threading
 import time
-
-from telegram.ext import Application
 
 from config import Config
 from database import db
@@ -36,7 +35,7 @@ class CloneHandle:
     def __init__(self, instance, thread: threading.Thread):
         self.instance = instance
         self.thread = thread
-        self.app = None            # set once the application is built
+        self.app = None  # set once the application is built
         self.stop_event = threading.Event()
         self.started_at = time.time()
 
@@ -81,7 +80,7 @@ def _run_clone_loop(instance_id: int):
 
         _set_env_for(instance.token, instance.username)
 
-        from bot import build_application, Update
+        from bot import Update, build_application
 
         logger.info("[%s] starting clone %s (@%s) ...", thread_name, instance.id, instance.username)
         app = build_application(token=instance.token, start_clones=False)
@@ -94,7 +93,7 @@ def _run_clone_loop(instance_id: int):
         # Set status to active once the application is up.
         current = db.get_bot_instance_by_id(instance_id)
         if current is not None:
-            db.set_bot_status(instance_id, 'active')
+            db.set_bot_status(instance_id, "active")
 
         # Schedule a periodic check that stops the app when requested.
         if handle is not None:
@@ -114,7 +113,7 @@ def _run_clone_loop(instance_id: int):
             # Token revoked/invalid: permanently disable so the owner can
             # re-issue a valid token or remove this clone.
             try:
-                db.set_bot_status(instance_id, 'disabled')
+                db.set_bot_status(instance_id, "disabled")
             except Exception:
                 pass
     finally:
@@ -123,8 +122,8 @@ def _run_clone_loop(instance_id: int):
         # status before the thread ended, so leave it untouched.
         try:
             current = db.get_bot_instance_by_id(instance_id)
-            if current is not None and current.status == 'active':
-                db.set_bot_status(instance_id, 'paused')
+            if current is not None and current.status == "active":
+                db.set_bot_status(instance_id, "paused")
         except Exception:
             pass
         with _REGISTRY_LOCK:
@@ -167,7 +166,7 @@ def start_clone(instance_id: int) -> bool:
         return True
 
 
-def stop_clone(instance_id: int, mark: str = 'paused', wait: float = 5.0) -> bool:
+def stop_clone(instance_id: int, mark: str = "paused", wait: float = 5.0) -> bool:
     """Gracefully stop a running clone's application.
 
     ``mark`` is the status to persist: 'paused' (default) or 'disabled'.
@@ -194,7 +193,7 @@ def _shutdown_all():
     with _REGISTRY_LOCK:
         ids = list(_REGISTRY.keys())
     for iid in ids:
-        stop_clone(iid, mark='paused')
+        stop_clone(iid, mark="paused")
     return ids
 
 
@@ -222,7 +221,7 @@ def start_clone_supervisor():
             return
         rows = db.get_bot_instances(only_known=True)
         for row in rows:
-            if row.status == 'active' and not is_clone_running(row.id):
+            if row.status == "active" and not is_clone_running(row.id):
                 try:
                     start_clone(row.id)
                 except Exception as e:
@@ -250,20 +249,20 @@ def set_clone_status(instance_id: int, status: str) -> tuple:
     if _is_main_token(instance.token):
         return False, "the main bot cannot be managed as a clone"
 
-    if status in ('start', 'enable', 'resume'):
+    if status in ("start", "enable", "resume"):
         if is_clone_running(instance_id):
-            db.set_bot_status(instance_id, 'active')
+            db.set_bot_status(instance_id, "active")
             return True, "already running"
-        db.set_bot_status(instance_id, 'active')
+        db.set_bot_status(instance_id, "active")
         ok = start_clone(instance_id)
         if ok:
             return True, "started"
-        db.set_bot_status(instance_id, 'paused')
+        db.set_bot_status(instance_id, "paused")
         return False, "could not start (is it already running?)"
 
-    if status in ('stop', 'disable', 'pause'):
+    if status in ("stop", "disable", "pause"):
         was_running = is_clone_running(instance_id)
-        mark = 'disabled' if status == 'disable' else 'paused'
+        mark = "disabled" if status == "disable" else "paused"
         if was_running:
             stop_clone(instance_id, mark=mark)
         else:

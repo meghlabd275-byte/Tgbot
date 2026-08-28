@@ -1,18 +1,21 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, BigInteger, UniqueConstraint
+import logging
+from datetime import datetime, timedelta
+
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import NullPool
 from sqlalchemy.sql import func
-from datetime import datetime, timedelta
+
 from config import Config
-import logging
 
 logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
+
 class Chat(Base):
-    __tablename__ = 'chats'
-    
+    __tablename__ = "chats"
+
     id = Column(BigInteger, primary_key=True)
     title = Column(String(255))
     is_active = Column(Boolean, default=False)
@@ -24,13 +27,14 @@ class Chat(Base):
     #   ban    - ban the user when warning limit is reached (default)
     #   mute   - mute the user when warning limit is reached
     #   tban   - temporarily ban (24h) when warning limit is reached
-    warn_mode = Column(String(10), default='ban')
+    warn_mode = Column(String(10), default="ban")
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
+
 class User(Base):
-    __tablename__ = 'users'
-    
+    __tablename__ = "users"
+
     id = Column(BigInteger, primary_key=True)
     username = Column(String(255))
     first_name = Column(String(255))
@@ -40,9 +44,10 @@ class User(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
+
 class Admin(Base):
-    __tablename__ = 'admins'
-    
+    __tablename__ = "admins"
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger)
     chat_id = Column(BigInteger)
@@ -50,9 +55,10 @@ class Admin(Base):
     is_super_admin = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
 
+
 class Ban(Base):
-    __tablename__ = 'bans'
-    
+    __tablename__ = "bans"
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger)
     chat_id = Column(BigInteger)
@@ -61,9 +67,10 @@ class Ban(Base):
     is_global = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
 
+
 class Warning(Base):
-    __tablename__ = 'warnings'
-    
+    __tablename__ = "warnings"
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger)
     chat_id = Column(BigInteger)
@@ -72,9 +79,10 @@ class Warning(Base):
     is_global = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
 
+
 class Mute(Base):
-    __tablename__ = 'mutes'
-    
+    __tablename__ = "mutes"
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger)
     chat_id = Column(BigInteger)
@@ -83,15 +91,17 @@ class Mute(Base):
     until = Column(DateTime)
     created_at = Column(DateTime, default=func.now())
 
+
 class Whitelist(Base):
-    __tablename__ = 'whitelist'
-    
+    __tablename__ = "whitelist"
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger)
     chat_id = Column(BigInteger)
     added_by = Column(BigInteger)
     is_global = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
+
 
 class DisabledChat(Base):
     """Group-level kill-switch controlled exclusively by the bot owner.
@@ -101,13 +111,14 @@ class DisabledChat(Base):
     federations, reports, ...). Only the bot owner (super admin) can disable or
     resume a group; group admins cannot resume a disabled group.
     """
-    __tablename__ = 'disabled_chats'
+
+    __tablename__ = "disabled_chats"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     chat_id = Column(BigInteger, nullable=False, unique=True, index=True)
     disabled_by = Column(BigInteger)
     reason = Column(Text)
-    scope = Column(String(16), default='all')  # reserved: 'all' (all services)
+    scope = Column(String(16), default="all")  # reserved: 'all' (all services)
     created_at = Column(DateTime, default=func.now())
 
 
@@ -123,14 +134,15 @@ class BotInstance(Base):
         paused   — polling is stopped but the bot can be resumed quickly
         disabled — permanently stopped; must be enabled again before running
     """
-    __tablename__ = 'bot_instances'
+
+    __tablename__ = "bot_instances"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     token = Column(String(255), nullable=False, unique=True, index=True)
     username = Column(String(255), nullable=False, index=True)
-    bot_id = Column(BigInteger, unique=True)          # Telegram numeric bot id
-    display_name = Column(String(255))                # optional friendly label
-    status = Column(String(16), default='disabled')   # active | paused | disabled
+    bot_id = Column(BigInteger, unique=True)  # Telegram numeric bot id
+    display_name = Column(String(255))  # optional friendly label
+    status = Column(String(16), default="disabled")  # active | paused | disabled
     created_by = Column(BigInteger)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -143,44 +155,46 @@ class GroupMembership(Base):
     clone) is added to a group, membership is recorded for every known bot so
     the owner's /groups command can show the complete fleet-wide picture.
     """
-    __tablename__ = 'group_memberships'
+
+    __tablename__ = "group_memberships"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    bot_id = Column(BigInteger, index=True)           # 0 = the main bot
+    bot_id = Column(BigInteger, index=True)  # 0 = the main bot
     chat_id = Column(BigInteger, index=True)
     chat_title = Column(String(255))
     joined_at = Column(DateTime, default=func.now())
 
     __table_args__ = (
         # A bot is either in a chat or it is not; (bot_id, chat_id) is unique.
-        UniqueConstraint('bot_id', 'chat_id', name='uq_group_memberships_bot_chat'),
+        UniqueConstraint("bot_id", "chat_id", name="uq_group_memberships_bot_chat"),
     )
 
+
 class DatabaseManager:
-    def __init__(self, database_url: str = None):
+    def __init__(self, database_url: str | None = None):
         self.database_url = database_url or Config.DATABASE_URL
 
-        url_lower = (self.database_url or '').lower()
-        self.backend = 'sqlite'
+        url_lower = (self.database_url or "").lower()
+        self.backend = "sqlite"
         engine_kwargs = {}
 
-        if url_lower.startswith('postgresql'):
+        if url_lower.startswith("postgresql"):
             # Production Postgres: use a connection pool tuned for managed
             # databases that close idle connections after a few minutes.
             engine_kwargs.update(
-                pool_pre_ping=True,     # verify connections are alive before use
+                pool_pre_ping=True,  # verify connections are alive before use
                 pool_timeout=30,
             )
-            self.backend = 'postgresql'
+            self.backend = "postgresql"
             logger.info("Using PostgreSQL database backend")
-        elif url_lower.startswith('mysql'):
+        elif url_lower.startswith("mysql"):
             # MySQL/MariaDB: pool tuning for long-lived bot processes.
             engine_kwargs.update(
                 pool_pre_ping=True,
                 pool_recycle=3600,
                 pool_timeout=30,
             )
-            self.backend = 'mysql'
+            self.backend = "mysql"
             logger.info("Using MySQL database backend")
         else:
             engine_kwargs.update(
@@ -198,9 +212,7 @@ class DatabaseManager:
         # expire_on_commit=False keeps attribute values loaded after commit so
         # ORM rows returned by helpfully-named methods (e.g. register_bot_instance)
         # can be read even after their session is closed.
-        self.SessionLocal = sessionmaker(
-            autocommit=False, autoflush=False, expire_on_commit=False, bind=self.engine
-        )
+        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=self.engine)
         self._create_all()
 
         # Expose model classes so handlers can do `session.query(db.Chat)` etc.
@@ -247,7 +259,7 @@ class DatabaseManager:
             logger.error(f"Database ping failed: {e}")
             return False
 
-    def get_or_create_chat(self, chat_id: int, title: str = None):
+    def get_or_create_chat(self, chat_id: int, title: str | None = None):
         session = self.get_session()
         try:
             chat = session.query(Chat).filter(Chat.id == chat_id).first()
@@ -261,8 +273,10 @@ class DatabaseManager:
             return chat
         finally:
             session.close()
-    
-    def get_or_create_user(self, user_id: int, username: str = None, first_name: str = None, last_name: str = None):
+
+    def get_or_create_user(
+        self, user_id: int, username: str | None = None, first_name: str | None = None, last_name: str | None = None
+    ):
         session = self.get_session()
         try:
             user = session.query(User).filter(User.id == user_id).first()
@@ -280,8 +294,8 @@ class DatabaseManager:
             return user
         finally:
             session.close()
-    
-    def is_admin(self, user_id: int, chat_id: int = None):
+
+    def is_admin(self, user_id: int, chat_id: int | None = None):
         session = self.get_session()
         try:
             if user_id in Config.super_admin_ids():
@@ -299,10 +313,7 @@ class DatabaseManager:
         """True if user is a registered admin for the specific chat (not super admin)."""
         session = self.get_session()
         try:
-            return session.query(Admin).filter(
-                Admin.user_id == user_id,
-                Admin.chat_id == chat_id
-            ).first() is not None
+            return session.query(Admin).filter(Admin.user_id == user_id, Admin.chat_id == chat_id).first() is not None
         finally:
             session.close()
 
@@ -330,15 +341,12 @@ class DatabaseManager:
                 session.commit()
         finally:
             session.close()
-    
-    def add_admin(self, user_id: int, chat_id: int, title: str = None):
+
+    def add_admin(self, user_id: int, chat_id: int, title: str | None = None):
         session = self.get_session()
         try:
-            existing = session.query(Admin).filter(
-                Admin.user_id == user_id, 
-                Admin.chat_id == chat_id
-            ).first()
-            
+            existing = session.query(Admin).filter(Admin.user_id == user_id, Admin.chat_id == chat_id).first()
+
             if not existing:
                 admin = Admin(user_id=user_id, chat_id=chat_id, title=title)
                 session.add(admin)
@@ -347,15 +355,12 @@ class DatabaseManager:
             return False
         finally:
             session.close()
-    
+
     def remove_admin(self, user_id: int, chat_id: int):
         session = self.get_session()
         try:
-            admin = session.query(Admin).filter(
-                Admin.user_id == user_id, 
-                Admin.chat_id == chat_id
-            ).first()
-            
+            admin = session.query(Admin).filter(Admin.user_id == user_id, Admin.chat_id == chat_id).first()
+
             if admin:
                 session.delete(admin)
                 session.commit()
@@ -370,8 +375,8 @@ class DatabaseManager:
         try:
             chat = session.query(Chat).filter(Chat.id == chat_id).first()
             if not chat:
-                return {'limit': Config.MAX_WARNINGS, 'mode': 'ban'}
-            return {'limit': Config.MAX_WARNINGS, 'mode': chat.warn_mode or 'ban'}
+                return {"limit": Config.MAX_WARNINGS, "mode": "ban"}
+            return {"limit": Config.MAX_WARNINGS, "mode": chat.warn_mode or "ban"}
         finally:
             session.close()
 
@@ -381,7 +386,7 @@ class DatabaseManager:
     # command decorator in utils.py.
     # ------------------------------------------------------------------
 
-    def disable_chat(self, chat_id: int, disabled_by: int, reason: str = None) -> bool:
+    def disable_chat(self, chat_id: int, disabled_by: int, reason: str | None = None) -> bool:
         """Disable ALL bot services in `chat_id`. Returns False if already disabled."""
         session = self.get_session()
         try:
@@ -456,14 +461,14 @@ class DatabaseManager:
             return False
         session = self.get_session()
         try:
-            return session.query(Approved).filter(
-                Approved.chat_id == chat_id,
-                Approved.user_id == user_id
-            ).first() is not None
+            return (
+                session.query(Approved).filter(Approved.chat_id == chat_id, Approved.user_id == user_id).first()
+                is not None
+            )
         finally:
             session.close()
-    
-    def is_banned(self, user_id: int, chat_id: int = None):
+
+    def is_banned(self, user_id: int, chat_id: int | None = None):
         session = self.get_session()
         try:
             query = session.query(Ban).filter(Ban.user_id == user_id)
@@ -471,27 +476,21 @@ class DatabaseManager:
                 query = query.filter((Ban.chat_id == chat_id) | (Ban.is_global == True))
             else:
                 query = query.filter(Ban.is_global == True)
-            
+
             return query.first() is not None
         finally:
             session.close()
-    
-    def add_ban(self, user_id: int, chat_id: int, banned_by: int, reason: str = None, is_global: bool = False):
+
+    def add_ban(self, user_id: int, chat_id: int, banned_by: int, reason: str | None = None, is_global: bool = False):
         session = self.get_session()
         try:
-            ban = Ban(
-                user_id=user_id, 
-                chat_id=chat_id, 
-                banned_by=banned_by, 
-                reason=reason, 
-                is_global=is_global
-            )
+            ban = Ban(user_id=user_id, chat_id=chat_id, banned_by=banned_by, reason=reason, is_global=is_global)
             session.add(ban)
             session.commit()
         finally:
             session.close()
-    
-    def remove_ban(self, user_id: int, chat_id: int = None, is_global: bool = False):
+
+    def remove_ban(self, user_id: int, chat_id: int | None = None, is_global: bool = False):
         session = self.get_session()
         try:
             query = session.query(Ban).filter(Ban.user_id == user_id)
@@ -499,7 +498,7 @@ class DatabaseManager:
                 query = query.filter(Ban.is_global == True)
             elif chat_id:
                 query = query.filter(Ban.chat_id == chat_id)
-            
+
             bans = query.all()
             for ban in bans:
                 session.delete(ban)
@@ -507,40 +506,39 @@ class DatabaseManager:
             return len(bans) > 0
         finally:
             session.close()
-    
+
     def get_warnings_count(self, user_id: int, chat_id: int):
         session = self.get_session()
         try:
-            return session.query(Warning).filter(
-                Warning.user_id == user_id,
-                (Warning.chat_id == chat_id) | (Warning.is_global == True)
-            ).count()
+            return (
+                session.query(Warning)
+                .filter(Warning.user_id == user_id, (Warning.chat_id == chat_id) | (Warning.is_global == True))
+                .count()
+            )
         finally:
             session.close()
-    
-    def add_warning(self, user_id: int, chat_id: int, warned_by: int, reason: str = None, is_global: bool = False):
+
+    def add_warning(
+        self, user_id: int, chat_id: int, warned_by: int, reason: str | None = None, is_global: bool = False
+    ):
         session = self.get_session()
         try:
-            warning = Warning(
-                user_id=user_id,
-                chat_id=chat_id,
-                warned_by=warned_by,
-                reason=reason,
-                is_global=is_global
-            )
+            warning = Warning(user_id=user_id, chat_id=chat_id, warned_by=warned_by, reason=reason, is_global=is_global)
             session.add(warning)
             session.commit()
         finally:
             session.close()
-    
+
     def remove_warning(self, user_id: int, chat_id: int):
         session = self.get_session()
         try:
-            warning = session.query(Warning).filter(
-                Warning.user_id == user_id,
-                Warning.chat_id == chat_id
-            ).order_by(Warning.created_at.desc()).first()
-            
+            warning = (
+                session.query(Warning)
+                .filter(Warning.user_id == user_id, Warning.chat_id == chat_id)
+                .order_by(Warning.created_at.desc())
+                .first()
+            )
+
             if warning:
                 session.delete(warning)
                 session.commit()
@@ -548,67 +546,55 @@ class DatabaseManager:
             return False
         finally:
             session.close()
-    
+
     def reset_warnings(self, user_id: int, chat_id: int):
         session = self.get_session()
         try:
-            warnings = session.query(Warning).filter(
-                Warning.user_id == user_id,
-                Warning.chat_id == chat_id
-            ).all()
-            
+            warnings = session.query(Warning).filter(Warning.user_id == user_id, Warning.chat_id == chat_id).all()
+
             for warning in warnings:
                 session.delete(warning)
             session.commit()
             return len(warnings)
         finally:
             session.close()
-    
+
     def is_muted(self, user_id: int, chat_id: int):
         session = self.get_session()
         try:
-            mute = session.query(Mute).filter(
-                Mute.user_id == user_id,
-                Mute.chat_id == chat_id,
-                Mute.until > datetime.now()
-            ).first()
-            
+            mute = (
+                session.query(Mute)
+                .filter(Mute.user_id == user_id, Mute.chat_id == chat_id, Mute.until > datetime.now())
+                .first()
+            )
+
             return mute is not None
         finally:
             session.close()
-    
-    def add_mute(self, user_id: int, chat_id: int, muted_by: int, duration: int, reason: str = None):
+
+    def add_mute(self, user_id: int, chat_id: int, muted_by: int, duration: int, reason: str | None = None):
         session = self.get_session()
         try:
             until = datetime.now() + timedelta(seconds=duration)
-            mute = Mute(
-                user_id=user_id,
-                chat_id=chat_id,
-                muted_by=muted_by,
-                reason=reason,
-                until=until
-            )
+            mute = Mute(user_id=user_id, chat_id=chat_id, muted_by=muted_by, reason=reason, until=until)
             session.add(mute)
             session.commit()
         finally:
             session.close()
-    
+
     def remove_mute(self, user_id: int, chat_id: int):
         session = self.get_session()
         try:
-            mutes = session.query(Mute).filter(
-                Mute.user_id == user_id,
-                Mute.chat_id == chat_id
-            ).all()
-            
+            mutes = session.query(Mute).filter(Mute.user_id == user_id, Mute.chat_id == chat_id).all()
+
             for mute in mutes:
                 session.delete(mute)
             session.commit()
             return len(mutes) > 0
         finally:
             session.close()
-    
-    def is_whitelisted(self, user_id: int, chat_id: int = None):
+
+    def is_whitelisted(self, user_id: int, chat_id: int | None = None):
         session = self.get_session()
         try:
             query = session.query(Whitelist).filter(Whitelist.user_id == user_id)
@@ -616,35 +602,30 @@ class DatabaseManager:
                 query = query.filter((Whitelist.chat_id == chat_id) | (Whitelist.is_global == True))
             else:
                 query = query.filter(Whitelist.is_global == True)
-            
+
             return query.first() is not None
         finally:
             session.close()
-    
+
     def add_whitelist(self, user_id: int, chat_id: int, added_by: int, is_global: bool = False):
         session = self.get_session()
         try:
-            existing = session.query(Whitelist).filter(
-                Whitelist.user_id == user_id,
-                Whitelist.chat_id == chat_id,
-                Whitelist.is_global == is_global
-            ).first()
-            
+            existing = (
+                session.query(Whitelist)
+                .filter(Whitelist.user_id == user_id, Whitelist.chat_id == chat_id, Whitelist.is_global == is_global)
+                .first()
+            )
+
             if not existing:
-                whitelist = Whitelist(
-                    user_id=user_id,
-                    chat_id=chat_id,
-                    added_by=added_by,
-                    is_global=is_global
-                )
+                whitelist = Whitelist(user_id=user_id, chat_id=chat_id, added_by=added_by, is_global=is_global)
                 session.add(whitelist)
                 session.commit()
                 return True
             return False
         finally:
             session.close()
-    
-    def remove_whitelist(self, user_id: int, chat_id: int = None, is_global: bool = False):
+
+    def remove_whitelist(self, user_id: int, chat_id: int | None = None, is_global: bool = False):
         session = self.get_session()
         try:
             query = session.query(Whitelist).filter(Whitelist.user_id == user_id)
@@ -652,7 +633,7 @@ class DatabaseManager:
                 query = query.filter(Whitelist.is_global == True)
             elif chat_id:
                 query = query.filter(Whitelist.chat_id == chat_id)
-            
+
             whitelists = query.all()
             for whitelist in whitelists:
                 session.delete(whitelist)
@@ -661,7 +642,7 @@ class DatabaseManager:
         finally:
             session.close()
 
-# ------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # Clone-bot registry (BotInstance) — owner-only management.
     # ------------------------------------------------------------------
 
@@ -696,8 +677,8 @@ class DatabaseManager:
                 synthetic = BotInstance(
                     token=main_token,
                     username=Config.BOT_USERNAME,
-                    display_name='Main bot',
-                    status='active',
+                    display_name="Main bot",
+                    status="active",
                 )
                 synthetic.id = 0
                 rows.insert(0, synthetic)
@@ -713,9 +694,15 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def register_bot_instance(self, token: str, username: str, bot_id: int,
-                              display_name: str = None, created_by: int = None,
-                              status: str = 'disabled'):
+    def register_bot_instance(
+        self,
+        token: str,
+        username: str,
+        bot_id: int,
+        display_name: str | None = None,
+        created_by: int | None = None,
+        status: str = "disabled",
+    ):
         """Register a new clone bot. Returns (row, created).
 
         The main bot's own token is never accepted as a clone.
@@ -724,9 +711,13 @@ class DatabaseManager:
             return None, False
         session = self.get_session()
         try:
-            existing = session.query(BotInstance).filter(
-                (BotInstance.token == token) | (BotInstance.username == username) | (BotInstance.bot_id == bot_id)
-            ).first()
+            existing = (
+                session.query(BotInstance)
+                .filter(
+                    (BotInstance.token == token) | (BotInstance.username == username) | (BotInstance.bot_id == bot_id)
+                )
+                .first()
+            )
             if existing:
                 if existing.bot_id != bot_id and bot_id is not None:
                     existing.bot_id = bot_id
@@ -748,7 +739,7 @@ class DatabaseManager:
 
     def update_bot_instance(self, instance_id: int, **fields):
         """Update one or more fields on a BotInstance row. Returns the row."""
-        allowed = {'username', 'bot_id', 'display_name', 'status'}
+        allowed = {"username", "bot_id", "display_name", "status"}
         session = self.get_session()
         try:
             row = session.query(BotInstance).filter(BotInstance.id == instance_id).first()
@@ -764,7 +755,7 @@ class DatabaseManager:
 
     def set_bot_status(self, instance_id: int, status: str) -> bool:
         """Set a clone's status to active|paused|disabled. Returns True on change."""
-        if status not in ('active', 'paused', 'disabled'):
+        if status not in ("active", "paused", "disabled"):
             return False
         session = self.get_session()
         try:
@@ -803,14 +794,18 @@ class DatabaseManager:
     # Fleet-wide group membership registry (GroupMembership).
     # ------------------------------------------------------------------
 
-    def record_group_membership(self, bot_id: int, chat_id: int, chat_title: str = None):
+    def record_group_membership(self, bot_id: int, chat_id: int, chat_title: str | None = None):
         """Record that ``bot_id`` is a member of ``chat_id`` (idempotent)."""
         session = self.get_session()
         try:
-            row = session.query(GroupMembership).filter(
-                GroupMembership.bot_id == bot_id,
-                GroupMembership.chat_id == chat_id,
-            ).first()
+            row = (
+                session.query(GroupMembership)
+                .filter(
+                    GroupMembership.bot_id == bot_id,
+                    GroupMembership.chat_id == chat_id,
+                )
+                .first()
+            )
             if row:
                 if chat_title and row.chat_title != chat_title:
                     row.chat_title = chat_title
@@ -823,8 +818,7 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def record_fleet_membership(self, chat_id: int, chat_title: str = None,
-                                include_bot_id: int = None):
+    def record_fleet_membership(self, chat_id: int, chat_title: str | None = None, include_bot_id: int | None = None):
         """Record a chat membership for *every* bot in the fleet.
 
         Called when any bot (main or clone) is added to a group. ``include_bot_id``
@@ -872,10 +866,14 @@ class DatabaseManager:
         # still in the chat.
         session = self.get_session()
         try:
-            others = session.query(GroupMembership).filter(
-                GroupMembership.chat_id == chat_id,
-                GroupMembership.bot_id != 0,
-            ).count()
+            others = (
+                session.query(GroupMembership)
+                .filter(
+                    GroupMembership.chat_id == chat_id,
+                    GroupMembership.bot_id != 0,
+                )
+                .count()
+            )
         finally:
             session.close()
         if others == 0:
@@ -888,33 +886,37 @@ class DatabaseManager:
         """
         session = self.get_session()
         try:
-            rows = session.query(GroupMembership).order_by(
-                GroupMembership.chat_id, GroupMembership.joined_at
-            ).all()
+            rows = session.query(GroupMembership).order_by(GroupMembership.chat_id, GroupMembership.joined_at).all()
         finally:
             session.close()
 
         groups = {}
         for r in rows:
-            info = groups.setdefault(r.chat_id, {
-                'chat_id': r.chat_id,
-                'title': r.chat_title,
-                'joined_at': r.joined_at,
-                'bot_ids': [],
-            })
-            if r.bot_id not in info['bot_ids']:
-                info['bot_ids'].append(r.bot_id)
-            if info['joined_at'] is None or (r.joined_at and r.joined_at < info['joined_at']):
-                info['joined_at'] = r.joined_at
+            info = groups.setdefault(
+                r.chat_id,
+                {
+                    "chat_id": r.chat_id,
+                    "title": r.chat_title,
+                    "joined_at": r.joined_at,
+                    "bot_ids": [],
+                },
+            )
+            if r.bot_id not in info["bot_ids"]:
+                info["bot_ids"].append(r.bot_id)
+            if info["joined_at"] is None or (r.joined_at and r.joined_at < info["joined_at"]):
+                info["joined_at"] = r.joined_at
         return list(groups.values())
 
     def get_groups_for_bot(self, bot_id: int):
         """Return GroupMembership rows for a specific bot id (0 = main bot)."""
         session = self.get_session()
         try:
-            return session.query(GroupMembership).filter(
-                GroupMembership.bot_id == bot_id
-            ).order_by(GroupMembership.joined_at.desc()).all()
+            return (
+                session.query(GroupMembership)
+                .filter(GroupMembership.bot_id == bot_id)
+                .order_by(GroupMembership.joined_at.desc())
+                .all()
+            )
         finally:
             session.close()
 

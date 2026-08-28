@@ -1,19 +1,23 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions
-from telegram.ext import ContextTypes
-from database import db
-from utils import is_admin_command, is_group_command, format_user_mention
 import logging
+
+from telegram import ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ContextTypes
+
+from database import db
+from utils import format_user_mention, is_admin_command, is_group_command
 
 logger = logging.getLogger(__name__)
 
 # Add new tables for welcome system
-from sqlalchemy import Column, Integer, String, Boolean, Text, BigInteger, DateTime
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.sql import func
+
 from database import Base
 
+
 class WelcomeSettings(Base):
-    __tablename__ = 'welcome_settings'
-    
+    __tablename__ = "welcome_settings"
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     chat_id = Column(BigInteger, unique=True)
     welcome_enabled = Column(Boolean, default=True)
@@ -26,29 +30,35 @@ class WelcomeSettings(Base):
     delete_service = Column(Boolean, default=False)  # delete all service messages (legacy master toggle)
     # Granular Join-Hider controls (like @joinhider_bot)
     delete_joined_msg = Column(Boolean, default=False)  # delete "X joined" service messages
-    delete_left_msg = Column(Boolean, default=False)     # delete "X left" service messages
-    delete_all_system_msg = Column(Boolean, default=False)  # delete ALL service messages (pin, title, photo, group created, etc.)
+    delete_left_msg = Column(Boolean, default=False)  # delete "X left" service messages
+    delete_all_system_msg = Column(
+        Boolean, default=False
+    )  # delete ALL service messages (pin, title, photo, group created, etc.)
     welcome_buttons = Column(Text)  # JSON string for buttons
-    welcome_button_text = Column(Text)      # label for the single welcome link button
-    welcome_button_url = Column(Text)       # url for the single welcome link button
+    welcome_button_text = Column(Text)  # label for the single welcome link button
+    welcome_button_url = Column(Text)  # url for the single welcome link button
     can_delete_welcome = Column(Boolean, default=True)  # auto-delete welcome message
     captcha_enabled = Column(Boolean, default=False)
     captcha_time = Column(Integer, default=300)  # 5 minutes
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
+
 class PendingUsers(Base):
-    __tablename__ = 'pending_users'
-    
+    __tablename__ = "pending_users"
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     chat_id = Column(BigInteger)
     user_id = Column(BigInteger)
     join_time = Column(DateTime, default=func.now())
     captcha_message_id = Column(Integer)
 
+
 def update_welcome_database():
     from database import db as database_instance
+
     Base.metadata.create_all(bind=database_instance.engine)
+
 
 @is_admin_command
 @is_group_command
@@ -63,13 +73,13 @@ async def setwelcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         rep = update.message.reply_to_message
         if rep.photo:
             welcome_media = rep.photo[-1].file_id
-            media_type = 'photo'
+            media_type = "photo"
         elif rep.video:
             welcome_media = rep.video.file_id
-            media_type = 'video'
+            media_type = "video"
         elif rep.animation:
             welcome_media = rep.animation.file_id
-            media_type = 'animation'
+            media_type = "animation"
 
     # Allow "/setwelcome" with a media reply and no caption.
     if not context.args and not welcome_media:
@@ -87,11 +97,11 @@ async def setwelcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "• `{count}` - Member count\n\n"
             "**Example:**\n"
             "`/setwelcome Welcome {mention} to {chatname}! We now have {count} members.`",
-            parse_mode='Markdown'
+            parse_mode="Markdown",
         )
         return
 
-    welcome_text = ' '.join(context.args) if context.args else None
+    welcome_text = " ".join(context.args) if context.args else None
     if not welcome_text and not welcome_media:
         await update.message.reply_text("❌ Provide a message and/or reply to a media message.")
         return
@@ -114,19 +124,19 @@ async def setwelcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 welcome_message=welcome_text,
                 welcome_media=welcome_media,
                 media_type=media_type,
-                welcome_enabled=True
+                welcome_enabled=True,
             )
             session.add(settings)
             session.commit()
 
         preview = format_welcome_message(welcome_text or "", update.effective_user, update.effective_chat)
         await update.message.reply_text(
-            f"✅ Welcome message set!\n\n**Preview:**\n{preview or '(media only)'}",
-            parse_mode='Markdown'
+            f"✅ Welcome message set!\n\n**Preview:**\n{preview or '(media only)'}", parse_mode="Markdown"
         )
 
     finally:
         session.close()
+
 
 @is_admin_command
 @is_group_command
@@ -134,39 +144,34 @@ async def setgoodbye_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """Set goodbye message"""
     if not context.args:
         await update.message.reply_text(
-            "❌ Usage: `/setgoodbye <message>`\n\n"
-            "Same variables as welcome message can be used.",
-            parse_mode='Markdown'
+            "❌ Usage: `/setgoodbye <message>`\n\nSame variables as welcome message can be used.", parse_mode="Markdown"
         )
         return
-    
-    goodbye_text = ' '.join(context.args)
+
+    goodbye_text = " ".join(context.args)
     chat_id = update.effective_chat.id
-    
+
     session = db.get_session()
     try:
         settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
-        
+
         if settings:
             settings.goodbye_message = goodbye_text
             settings.goodbye_enabled = True
             session.commit()
         else:
-            settings = WelcomeSettings(
-                chat_id=chat_id,
-                goodbye_message=goodbye_text,
-                goodbye_enabled=True
-            )
+            settings = WelcomeSettings(chat_id=chat_id, goodbye_message=goodbye_text, goodbye_enabled=True)
             session.add(settings)
             session.commit()
-        
+
         await update.message.reply_text(
             f"✅ Goodbye message set!\n\n**Preview:**\n{format_welcome_message(goodbye_text, update.effective_user, update.effective_chat)}",
-            parse_mode='Markdown'
+            parse_mode="Markdown",
         )
-    
+
     finally:
         session.close()
+
 
 @is_admin_command
 @is_group_command
@@ -178,23 +183,23 @@ async def welcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session = db.get_session()
         try:
             settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
-            
+
             if not settings:
                 await update.message.reply_text("❌ No welcome settings configured. Use `/setwelcome` to set up.")
                 return
-            
+
             welcome_info = f"""👋 **Welcome Settings**
 
-**Welcome:** {'✅ Enabled' if settings.welcome_enabled else '❌ Disabled'}
-**Goodbye:** {'✅ Enabled' if settings.goodbye_enabled else '❌ Disabled'}
-**Captcha:** {'✅ Enabled' if settings.captcha_enabled else '❌ Disabled'}
-**Delete Service Messages:** {'✅ Yes' if settings.delete_service else '❌ No'}
+**Welcome:** {"✅ Enabled" if settings.welcome_enabled else "❌ Disabled"}
+**Goodbye:** {"✅ Enabled" if settings.goodbye_enabled else "❌ Disabled"}
+**Captcha:** {"✅ Enabled" if settings.captcha_enabled else "❌ Disabled"}
+**Delete Service Messages:** {"✅ Yes" if settings.delete_service else "❌ No"}
 
 **Welcome Message:**
-{settings.welcome_message or 'Not set'}
+{settings.welcome_message or "Not set"}
 
 **Goodbye Message:**
-{settings.goodbye_message or 'Not set'}
+{settings.goodbye_message or "Not set"}
 
 **Commands:**
 • `/welcome on|off` - Toggle welcome
@@ -203,22 +208,22 @@ async def welcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • `/setgoodbye <text>` - Set goodbye message
 • `/captcha on|off` - Toggle captcha
 • `/cleanservice on|off` - Toggle service message deletion"""
-            
-            await update.message.reply_text(welcome_info, parse_mode='Markdown')
-        
+
+            await update.message.reply_text(welcome_info, parse_mode="Markdown")
+
         finally:
             session.close()
         return
-    
+
     # Toggle welcome
-    if context.args[0].lower() in ['on', 'off']:
-        status = context.args[0].lower() == 'on'
+    if context.args[0].lower() in ["on", "off"]:
+        status = context.args[0].lower() == "on"
         chat_id = update.effective_chat.id
-        
+
         session = db.get_session()
         try:
             settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
-            
+
             if settings:
                 settings.welcome_enabled = status
                 session.commit()
@@ -226,27 +231,28 @@ async def welcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 settings = WelcomeSettings(chat_id=chat_id, welcome_enabled=status)
                 session.add(settings)
                 session.commit()
-            
+
             await update.message.reply_text(f"✅ Welcome messages {'enabled' if status else 'disabled'}.")
-        
+
         finally:
             session.close()
+
 
 @is_admin_command
 @is_group_command
 async def goodbye_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Toggle goodbye messages"""
-    if not context.args or context.args[0].lower() not in ['on', 'off']:
+    if not context.args or context.args[0].lower() not in ["on", "off"]:
         await update.message.reply_text("❌ Usage: `/goodbye on|off`")
         return
-    
-    status = context.args[0].lower() == 'on'
+
+    status = context.args[0].lower() == "on"
     chat_id = update.effective_chat.id
-    
+
     session = db.get_session()
     try:
         settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
-        
+
         if settings:
             settings.goodbye_enabled = status
             session.commit()
@@ -254,27 +260,28 @@ async def goodbye_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             settings = WelcomeSettings(chat_id=chat_id, goodbye_enabled=status)
             session.add(settings)
             session.commit()
-        
+
         await update.message.reply_text(f"✅ Goodbye messages {'enabled' if status else 'disabled'}.")
-    
+
     finally:
         session.close()
+
 
 @is_admin_command
 @is_group_command
 async def captcha_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Toggle captcha for new users"""
-    if not context.args or context.args[0].lower() not in ['on', 'off']:
+    if not context.args or context.args[0].lower() not in ["on", "off"]:
         await update.message.reply_text("❌ Usage: `/captcha on|off`")
         return
-    
-    status = context.args[0].lower() == 'on'
+
+    status = context.args[0].lower() == "on"
     chat_id = update.effective_chat.id
-    
+
     session = db.get_session()
     try:
         settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
-        
+
         if settings:
             settings.captcha_enabled = status
             session.commit()
@@ -282,30 +289,31 @@ async def captcha_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             settings = WelcomeSettings(chat_id=chat_id, captcha_enabled=status)
             session.add(settings)
             session.commit()
-        
+
         await update.message.reply_text(
             f"✅ Captcha {'enabled' if status else 'disabled'}.\n"
             f"{'New users will need to solve a captcha to chat.' if status else ''}"
         )
-    
+
     finally:
         session.close()
+
 
 @is_admin_command
 @is_group_command
 async def cleanservice_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Toggle deletion of service messages"""
-    if not context.args or context.args[0].lower() not in ['on', 'off']:
+    if not context.args or context.args[0].lower() not in ["on", "off"]:
         await update.message.reply_text("❌ Usage: `/cleanservice on|off`")
         return
-    
-    status = context.args[0].lower() == 'on'
+
+    status = context.args[0].lower() == "on"
     chat_id = update.effective_chat.id
-    
+
     session = db.get_session()
     try:
         settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
-        
+
         if settings:
             settings.delete_service = status
             session.commit()
@@ -313,16 +321,17 @@ async def cleanservice_command(update: Update, context: ContextTypes.DEFAULT_TYP
             settings = WelcomeSettings(chat_id=chat_id, delete_service=status)
             session.add(settings)
             session.commit()
-        
+
         await update.message.reply_text(
             f"✅ Service message deletion {'enabled' if status else 'disabled'}.\n"
             f"{'Join/leave messages will be automatically deleted.' if status else ''}\n"
             f"💡 For granular control use `/joinhider` (separate joined/left toggles).",
-            parse_mode='Markdown'
+            parse_mode="Markdown",
         )
-    
+
     finally:
         session.close()
+
 
 @is_admin_command
 @is_group_command
@@ -355,57 +364,58 @@ async def joinhider_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"• Delete ALL system messages: {'✅' if settings.delete_all_system_msg else '❌'}\n"
                 f"• Delete all service (legacy): {'✅' if settings.delete_service else '❌'}\n\n"
                 "**Commands:**\n"
-                "• `/joinhider joined on|off` — hide \"X joined\" messages\n"
-                "• `/joinhider left on|off` — hide \"X left\" messages\n"
+                '• `/joinhider joined on|off` — hide "X joined" messages\n'
+                '• `/joinhider left on|off` — hide "X left" messages\n'
                 "• `/joinhider all on|off` — hide both join + leave\n"
                 "• `/joinhider system on|off` — hide ALL service messages (pins, title/photo changes)\n"
                 "• `/cleanservice on|off` — legacy master toggle",
-                parse_mode='Markdown',
+                parse_mode="Markdown",
             )
             return
 
         sub = context.args[0].lower()
 
         def _bool(val: str) -> bool:
-            return val.lower() in ('on', 'yes', 'true', '1')
+            return val.lower() in ("on", "yes", "true", "1")
 
-        if sub == 'joined':
+        if sub == "joined":
             if len(context.args) < 2:
-                await update.message.reply_text("❌ Usage: `/joinhider joined on|off`", parse_mode='Markdown')
+                await update.message.reply_text("❌ Usage: `/joinhider joined on|off`", parse_mode="Markdown")
                 return
             settings.delete_joined_msg = _bool(context.args[1])
             msg = f"✅ Hiding 'joined' messages {'enabled' if settings.delete_joined_msg else 'disabled'}."
-        elif sub == 'left':
+        elif sub == "left":
             if len(context.args) < 2:
-                await update.message.reply_text("❌ Usage: `/joinhider left on|off`", parse_mode='Markdown')
+                await update.message.reply_text("❌ Usage: `/joinhider left on|off`", parse_mode="Markdown")
                 return
             settings.delete_left_msg = _bool(context.args[1])
             msg = f"✅ Hiding 'left' messages {'enabled' if settings.delete_left_msg else 'disabled'}."
-        elif sub == 'all':
+        elif sub == "all":
             if len(context.args) < 2:
-                await update.message.reply_text("❌ Usage: `/joinhider all on|off`", parse_mode='Markdown')
+                await update.message.reply_text("❌ Usage: `/joinhider all on|off`", parse_mode="Markdown")
                 return
             val = _bool(context.args[1])
             settings.delete_joined_msg = val
             settings.delete_left_msg = val
             msg = f"✅ Hiding all join/leave messages {'enabled' if val else 'disabled'}."
-        elif sub == 'system':
+        elif sub == "system":
             if len(context.args) < 2:
-                await update.message.reply_text("❌ Usage: `/joinhider system on|off`", parse_mode='Markdown')
+                await update.message.reply_text("❌ Usage: `/joinhider system on|off`", parse_mode="Markdown")
                 return
             settings.delete_all_system_msg = _bool(context.args[1])
-            msg = (f"✅ Hiding ALL system messages {'enabled' if settings.delete_all_system_msg else 'disabled'}.\n"
-                   "Pinned-message, title-change, photo-change and group-created notifications will be deleted.")
-        else:
-            await update.message.reply_text(
-                "❌ Unknown option. Use: joined, left, all, system", parse_mode='Markdown'
+            msg = (
+                f"✅ Hiding ALL system messages {'enabled' if settings.delete_all_system_msg else 'disabled'}.\n"
+                "Pinned-message, title-change, photo-change and group-created notifications will be deleted."
             )
+        else:
+            await update.message.reply_text("❌ Unknown option. Use: joined, left, all, system", parse_mode="Markdown")
             return
 
         session.commit()
-        await update.message.reply_text(msg, parse_mode='Markdown')
+        await update.message.reply_text(msg, parse_mode="Markdown")
     finally:
         session.close()
+
 
 @is_admin_command
 @is_group_command
@@ -421,7 +431,7 @@ async def setwelcomebutton_command(update: Update, context: ContextTypes.DEFAULT
             "Example: `/setwelcomebutton Website https://example.com`\n\n"
             "The welcome message bots reply to each new member will include an\n"
             "inline button with this label that links to this URL.",
-            parse_mode='Markdown',
+            parse_mode="Markdown",
         )
         return
 
@@ -429,10 +439,8 @@ async def setwelcomebutton_command(update: Update, context: ContextTypes.DEFAULT
     url = context.args[1].strip()
     chat_id = update.effective_chat.id
 
-    if not url.startswith(('http://', 'https://', 't.me/')):
-        await update.message.reply_text(
-            "❌ Please provide a valid URL starting with http://, https:// or t.me/."
-        )
+    if not url.startswith(("http://", "https://", "t.me/")):
+        await update.message.reply_text("❌ Please provide a valid URL starting with http://, https:// or t.me/.")
         return
 
     session = db.get_session()
@@ -449,7 +457,7 @@ async def setwelcomebutton_command(update: Update, context: ContextTypes.DEFAULT
 
     await update.message.reply_text(
         f"✅ Welcome button set: [{label}]({url}).",
-        parse_mode='Markdown',
+        parse_mode="Markdown",
     )
 
 
@@ -463,8 +471,7 @@ async def welcomebuttons_command(update: Update, context: ContextTypes.DEFAULT_T
         settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
         if not settings or (not settings.welcome_button_text and not settings.welcome_button_url):
             await update.message.reply_text(
-                "ℹ️ No welcome button configured.\n"
-                "Use `/setwelcomebutton <label> <url>` to add one."
+                "ℹ️ No welcome button configured.\nUse `/setwelcomebutton <label> <url>` to add one."
             )
             return
         await update.message.reply_text(
@@ -472,7 +479,7 @@ async def welcomebuttons_command(update: Update, context: ContextTypes.DEFAULT_T
             f"• Label: `{settings.welcome_button_text}`\n"
             f"• URL: {settings.welcome_button_url}\n\n"
             "Remove it with `/delwelcomebutton`.",
-            parse_mode='Markdown',
+            parse_mode="Markdown",
         )
     finally:
         session.close()
@@ -525,25 +532,25 @@ async def welcomedelete_command(update: Update, context: ContextTypes.DEFAULT_TY
                 f"• Enabled: {'✅ Yes' if settings.can_delete_welcome else '❌ No'}\n"
                 f"• Delay: {delay}s (0 = disabled)\n\n"
                 "`/welcomedelete <seconds>` to change, `/welcomedelete on|off` to toggle.",
-                parse_mode='Markdown',
+                parse_mode="Markdown",
             )
             return
 
         arg = context.args[0].lower()
-        if arg in ('on', 'enable'):
+        if arg in ("on", "enable"):
             settings.can_delete_welcome = True
             if not settings.delete_welcome:
                 settings.delete_welcome = 60
             session.commit()
             await update.message.reply_text(
                 f"✅ Welcome auto-delete enabled ({settings.delete_welcome}s).",
-                parse_mode='Markdown',
+                parse_mode="Markdown",
             )
-        elif arg in ('off', 'disable'):
+        elif arg in ("off", "disable"):
             settings.can_delete_welcome = False
             session.commit()
             await update.message.reply_text("✅ Welcome auto-delete disabled.")
-        elif arg.lstrip('-').isdigit():
+        elif arg.lstrip("-").isdigit():
             seconds = int(arg)
             if seconds < 0:
                 await update.message.reply_text("❌ Delay must be 0 or a positive number.")
@@ -554,13 +561,9 @@ async def welcomedelete_command(update: Update, context: ContextTypes.DEFAULT_TY
             if seconds == 0:
                 await update.message.reply_text("✅ Welcome auto-delete disabled (delay set to 0).")
             else:
-                await update.message.reply_text(
-                    f"✅ Welcome message will auto-delete after {seconds} seconds."
-                )
+                await update.message.reply_text(f"✅ Welcome message will auto-delete after {seconds} seconds.")
         else:
-            await update.message.reply_text(
-                "❌ Usage: `/welcomedelete [seconds|on|off]`", parse_mode='Markdown'
-            )
+            await update.message.reply_text("❌ Usage: `/welcomedelete [seconds|on|off]`", parse_mode="Markdown")
     finally:
         session.close()
 
@@ -578,6 +581,7 @@ async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAUL
     # Anti-raid: track joins and auto-enable under-attack mode on a burst
     try:
         from handlers.antiflood import check_raid
+
         await check_raid(update, context)
     except Exception as e:
         logger.error(f"Raid check failed: {e}")
@@ -588,20 +592,20 @@ async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAUL
     if bot_added:
         db.get_or_create_chat(chat_id, update.effective_chat.title)
         welcome_msg = (
-            f"👋 **Hello! I'm your new admin assistant bot.**\n\n"
-            f"🔧 **To get started:**\n"
-            f"1. Make me an admin with necessary permissions\n"
-            f"2. Use `/activate` to register this chat\n"
-            f"3. Use `/help` to see all available commands\n\n"
-            f"🛡️ **I can help you with:**\n"
-            f"• User management (ban, kick, mute, warn)\n"
-            f"• Chat moderation (silence, purge, pin)\n"
-            f"• Admin verification and security\n"
-            f"• Whitelist and reputation systems\n\n"
-            f"📚 Use `/help` for a complete command list!"
+            "👋 **Hello! I'm your new admin assistant bot.**\n\n"
+            "🔧 **To get started:**\n"
+            "1. Make me an admin with necessary permissions\n"
+            "2. Use `/activate` to register this chat\n"
+            "3. Use `/help` to see all available commands\n\n"
+            "🛡️ **I can help you with:**\n"
+            "• User management (ban, kick, mute, warn)\n"
+            "• Chat moderation (silence, purge, pin)\n"
+            "• Admin verification and security\n"
+            "• Whitelist and reputation systems\n\n"
+            "📚 Use `/help` for a complete command list!"
         )
         try:
-            await context.bot.send_message(chat_id, welcome_msg, parse_mode='Markdown')
+            await context.bot.send_message(chat_id, welcome_msg, parse_mode="Markdown")
         except Exception as e:
             logger.error(f"Failed to send bot-added welcome to chat {chat_id}: {e}")
         return
@@ -624,7 +628,7 @@ async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAUL
                     logger.error(f"Failed to kick new member {member.id}: {e}")
             try:
                 await context.bot.delete_message(chat_id, update.message.message_id)
-            except:
+            except Exception:
                 pass
             return
 
@@ -645,6 +649,7 @@ async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAUL
         # Enforce federation bans on join
         try:
             from handlers.federations import enforce_federation_bans
+
             await enforce_federation_bans(update, context)
         except Exception as e:
             logger.error(f"Federation ban enforcement failed: {e}")
@@ -658,7 +663,7 @@ async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAUL
         if settings.delete_service or settings.delete_joined_msg:
             try:
                 await context.bot.delete_message(chat_id, update.message.message_id)
-            except:
+            except Exception:
                 pass
             # If we deleted the service message AND there is no welcome/captcha
             # to send, we're done (pure join-hider mode).
@@ -677,28 +682,27 @@ async def handle_new_member_welcome(update: Update, context: ContextTypes.DEFAUL
     finally:
         session.close()
 
+
 async def handle_captcha(update: Update, context: ContextTypes.DEFAULT_TYPE, user, settings):
     """Handle captcha for new user"""
     import random
-    
+
     chat_id = update.effective_chat.id
     user_id = user.id
-    
+
     # Restrict user until captcha is solved
     try:
         await context.bot.restrict_chat_member(
-            chat_id=chat_id,
-            user_id=user_id,
-            permissions=ChatPermissions(can_send_messages=False)
+            chat_id=chat_id, user_id=user_id, permissions=ChatPermissions(can_send_messages=False)
         )
-    except:
+    except Exception:
         pass
-    
+
     # Generate simple math captcha
     num1 = random.randint(1, 10)
     num2 = random.randint(1, 10)
     answer = num1 + num2
-    
+
     # Create captcha buttons
     buttons = []
     correct_answer = answer
@@ -715,14 +719,14 @@ async def handle_captcha(update: Update, context: ContextTypes.DEFAULT_TYPE, use
             continue
         wrong_answers.append(candidate)
 
-    all_answers = [correct_answer] + wrong_answers
+    all_answers = [correct_answer, *wrong_answers]
     random.shuffle(all_answers)
-    
+
     for ans in all_answers:
         buttons.append(InlineKeyboardButton(str(ans), callback_data=f"captcha_{user_id}_{ans}_{correct_answer}"))
-    
+
     keyboard = InlineKeyboardMarkup([buttons])
-    
+
     captcha_text = f"""🔐 **Captcha Verification**
 
 Welcome {format_user_mention(user)}!
@@ -731,91 +735,82 @@ To prove you're human, please solve this simple math problem:
 **{num1} + {num2} = ?**
 
 You have {settings.captcha_time // 60} minutes to solve this, or you'll be kicked."""
-    
+
     try:
         captcha_msg = await context.bot.send_message(
-            chat_id,
-            captcha_text,
-            parse_mode='Markdown',
-            reply_markup=keyboard
+            chat_id, captcha_text, parse_mode="Markdown", reply_markup=keyboard
         )
-        
+
         # Store pending user
         session = db.get_session()
         try:
-            pending = PendingUsers(
-                chat_id=chat_id,
-                user_id=user_id,
-                captcha_message_id=captcha_msg.message_id
-            )
+            pending = PendingUsers(chat_id=chat_id, user_id=user_id, captcha_message_id=captcha_msg.message_id)
             session.add(pending)
             session.commit()
         finally:
             session.close()
-        
+
         # Schedule kick if not solved
         context.job_queue.run_once(
             lambda context: kick_unverified_user(context, chat_id, user_id, captcha_msg.message_id),
-            settings.captcha_time
+            settings.captcha_time,
         )
-        
+
     except Exception as e:
         logger.error(f"Error sending captcha: {e}")
+
 
 async def kick_unverified_user(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int, message_id: int):
     """Kick user who didn't solve captcha"""
     session = db.get_session()
     try:
-        pending = session.query(PendingUsers).filter(
-            PendingUsers.chat_id == chat_id,
-            PendingUsers.user_id == user_id
-        ).first()
-        
+        pending = (
+            session.query(PendingUsers).filter(PendingUsers.chat_id == chat_id, PendingUsers.user_id == user_id).first()
+        )
+
         if pending:
             # User still pending, kick them
             try:
                 await context.bot.ban_chat_member(chat_id, user_id)
                 await context.bot.unban_chat_member(chat_id, user_id)
                 await context.bot.delete_message(chat_id, message_id)
-                
-                await context.bot.send_message(
-                    chat_id,
-                    f"⏰ User kicked for not solving captcha in time."
-                )
-            except:
+
+                await context.bot.send_message(chat_id, "⏰ User kicked for not solving captcha in time.")
+            except Exception:
                 pass
-            
+
             session.delete(pending)
             session.commit()
-    
+
     finally:
         session.close()
+
 
 async def send_welcome_message(update: Update, context: ContextTypes.DEFAULT_TYPE, user, settings):
     """Send welcome message to new user"""
     chat = update.effective_chat
 
     member_count = await _get_member_count(context, chat.id)
-    welcome_text = format_welcome_message(settings.welcome_message or '', user, chat, member_count)
+    welcome_text = format_welcome_message(settings.welcome_message or "", user, chat, member_count)
 
     reply_markup = _build_welcome_keyboard(settings)
 
     try:
         # If media is attached, send the media with the welcome text as caption.
         if settings.welcome_media:
-            kwargs = {'chat_id': chat.id, 'caption': welcome_text, 'parse_mode': 'Markdown'}
+            kwargs = {"chat_id": chat.id, "caption": welcome_text, "parse_mode": "Markdown"}
             if reply_markup is not None:
-                kwargs['reply_markup'] = reply_markup
-            if settings.media_type == 'photo':
+                kwargs["reply_markup"] = reply_markup
+            if settings.media_type == "photo":
                 welcome_msg = await context.bot.send_photo(settings.welcome_media, **kwargs)
-            elif settings.media_type == 'video':
+            elif settings.media_type == "video":
                 welcome_msg = await context.bot.send_video(settings.welcome_media, **kwargs)
             else:
                 welcome_msg = await context.bot.send_animation(settings.welcome_media, **kwargs)
         else:
-            kwargs = {'chat_id': chat.id, 'text': welcome_text, 'parse_mode': 'Markdown'}
+            kwargs = {"chat_id": chat.id, "text": welcome_text, "parse_mode": "Markdown"}
             if reply_markup is not None:
-                kwargs['reply_markup'] = reply_markup
+                kwargs["reply_markup"] = reply_markup
             welcome_msg = await context.bot.send_message(**kwargs)
 
         # Auto-delete the welcome message after 60 seconds by default. Admins
@@ -826,8 +821,7 @@ async def send_welcome_message(update: Update, context: ContextTypes.DEFAULT_TYP
 
         if settings.can_delete_welcome and delete_after > 0:
             context.job_queue.run_once(
-                lambda context: context.bot.delete_message(chat.id, welcome_msg.message_id),
-                delete_after
+                lambda context: context.bot.delete_message(chat.id, welcome_msg.message_id), delete_after
             )
 
     except Exception as e:
@@ -843,23 +837,26 @@ def _build_welcome_keyboard(settings):
       2. The legacy JSON welcome_buttons (list of rows of buttons).
     Returns None when no buttons are configured.
     """
-    if getattr(settings, 'welcome_button_text', None) and getattr(settings, 'welcome_button_url', None):
-        return InlineKeyboardMarkup([[InlineKeyboardButton(
-            settings.welcome_button_text, url=settings.welcome_button_url
-        )]])
+    if getattr(settings, "welcome_button_text", None) and getattr(settings, "welcome_button_url", None):
+        return InlineKeyboardMarkup(
+            [[InlineKeyboardButton(settings.welcome_button_text, url=settings.welcome_button_url)]]
+        )
 
-    if getattr(settings, 'welcome_buttons', None):
+    if getattr(settings, "welcome_buttons", None):
         import json
+
         try:
             rows = json.loads(settings.welcome_buttons)
             keyboard = []
             for row in rows:
                 buttons = []
                 for item in row:
-                    if item.get('url'):
-                        buttons.append(InlineKeyboardButton(item.get('text', '🔗'), url=item['url']))
-                    elif item.get('callback_data'):
-                        buttons.append(InlineKeyboardButton(item.get('text', 'Action'), callback_data=item['callback_data']))
+                    if item.get("url"):
+                        buttons.append(InlineKeyboardButton(item.get("text", "🔗"), url=item["url"]))
+                    elif item.get("callback_data"):
+                        buttons.append(
+                            InlineKeyboardButton(item.get("text", "Action"), callback_data=item["callback_data"])
+                        )
                 if buttons:
                     keyboard.append(buttons)
             if keyboard:
@@ -879,45 +876,44 @@ async def handle_left_member_goodbye(update: Update, context: ContextTypes.DEFAU
         return
 
     left_member = update.message.left_chat_member
-    
+
     if not left_member or left_member.is_bot:
         return
-    
+
     session = db.get_session()
     try:
         settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
-        
+
         if not settings:
             return
-        
+
         # Delete the "X left" service message if any join-hider toggle is on.
         # delete_service is the legacy master toggle; delete_left_msg is the
         # granular control (mirrors @joinhider_bot's delete_user_left_msg).
         if settings.delete_service or settings.delete_left_msg:
             try:
                 await context.bot.delete_message(chat_id, update.message.message_id)
-            except:
+            except Exception:
                 pass
             # Pure join-hider mode: if no goodbye to send, stop here.
             if not (settings.goodbye_enabled and settings.goodbye_message):
                 return
-        
+
         # Send goodbye message
         if settings.goodbye_enabled and settings.goodbye_message:
             member_count = await _get_member_count(context, chat_id)
-            goodbye_text = format_welcome_message(settings.goodbye_message, left_member, update.effective_chat, member_count)
-            
+            goodbye_text = format_welcome_message(
+                settings.goodbye_message, left_member, update.effective_chat, member_count
+            )
+
             try:
-                await context.bot.send_message(
-                    chat_id,
-                    goodbye_text,
-                    parse_mode='Markdown'
-                )
+                await context.bot.send_message(chat_id, goodbye_text, parse_mode="Markdown")
             except Exception as e:
                 logger.error(f"Error sending goodbye message: {e}")
-    
+
     finally:
         session.close()
+
 
 async def _get_member_count(context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> int:
     """Return the live member count for a chat (0 if unavailable)."""
@@ -927,7 +923,7 @@ async def _get_member_count(context: ContextTypes.DEFAULT_TYPE, chat_id: int) ->
         return 0
 
 
-def format_welcome_message(template: str, user, chat, member_count: int = None) -> str:
+def format_welcome_message(template: str, user, chat, member_count: int | None = None) -> str:
     """Format welcome message with variables"""
     if not template:
         return ""
@@ -938,14 +934,14 @@ def format_welcome_message(template: str, user, chat, member_count: int = None) 
         member_count = 0
 
     replacements = {
-        '{first}': user.first_name or '',
-        '{last}': user.last_name or '',
-        '{fullname}': f"{user.first_name or ''} {user.last_name or ''}".strip(),
-        '{username}': f"@{user.username}" if user.username else user.first_name,
-        '{mention}': format_user_mention(user),
-        '{id}': str(user.id),
-        '{chatname}': chat.title or 'this chat',
-        '{count}': str(member_count)
+        "{first}": user.first_name or "",
+        "{last}": user.last_name or "",
+        "{fullname}": f"{user.first_name or ''} {user.last_name or ''}".strip(),
+        "{username}": f"@{user.username}" if user.username else user.first_name,
+        "{mention}": format_user_mention(user),
+        "{id}": str(user.id),
+        "{chatname}": chat.title or "this chat",
+        "{count}": str(member_count),
     }
 
     formatted = template
@@ -954,91 +950,88 @@ def format_welcome_message(template: str, user, chat, member_count: int = None) 
 
     return formatted
 
+
 # Handle captcha button callbacks
 async def handle_captcha_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle captcha button press"""
     query = update.callback_query
     await query.answer()
-    
-    data = query.data.split('_')
-    if len(data) != 4 or data[0] != 'captcha':
+
+    data = query.data.split("_")
+    if len(data) != 4 or data[0] != "captcha":
         return
-    
+
     user_id = int(data[1])
     selected_answer = int(data[2])
     correct_answer = int(data[3])
-    
+
     # Check if the user pressing the button is the one who needs to solve captcha
     if query.from_user.id != user_id:
         await query.answer("❌ This captcha is not for you!", show_alert=True)
         return
-    
+
     chat_id = query.message.chat_id
-    
+
     if selected_answer == correct_answer:
         # Correct answer - remove restrictions
         try:
             chat = await context.bot.get_chat(chat_id)
-            await context.bot.restrict_chat_member(
-                chat_id=chat_id,
-                user_id=user_id,
-                permissions=chat.permissions
-            )
-            
-            await query.edit_message_text(
-                f"✅ Captcha solved! Welcome to the chat, {query.from_user.first_name}!"
-            )
-            
+            await context.bot.restrict_chat_member(chat_id=chat_id, user_id=user_id, permissions=chat.permissions)
+
+            await query.edit_message_text(f"✅ Captcha solved! Welcome to the chat, {query.from_user.first_name}!")
+
             # Remove from pending users
             session = db.get_session()
             try:
-                pending = session.query(PendingUsers).filter(
-                    PendingUsers.chat_id == chat_id,
-                    PendingUsers.user_id == user_id
-                ).first()
-                
+                pending = (
+                    session.query(PendingUsers)
+                    .filter(PendingUsers.chat_id == chat_id, PendingUsers.user_id == user_id)
+                    .first()
+                )
+
                 if pending:
                     session.delete(pending)
                     session.commit()
-                
+
                 # Send welcome message now
                 settings = session.query(WelcomeSettings).filter(WelcomeSettings.chat_id == chat_id).first()
                 if settings and settings.welcome_enabled and settings.welcome_message:
                     member_count = await _get_member_count(context, chat_id)
-                    welcome_text = format_welcome_message(settings.welcome_message, query.from_user, query.message.chat, member_count)
-                    await context.bot.send_message(chat_id, welcome_text, parse_mode='Markdown')
-            
+                    welcome_text = format_welcome_message(
+                        settings.welcome_message, query.from_user, query.message.chat, member_count
+                    )
+                    await context.bot.send_message(chat_id, welcome_text, parse_mode="Markdown")
+
             finally:
                 session.close()
-        
+
         except Exception as e:
             logger.error(f"Error handling correct captcha: {e}")
-    
+
     else:
         # Wrong answer - kick user
         try:
             await context.bot.ban_chat_member(chat_id, user_id)
             await context.bot.unban_chat_member(chat_id, user_id)
-            
-            await query.edit_message_text(
-                f"❌ Wrong answer! {query.from_user.first_name} has been kicked."
-            )
-            
+
+            await query.edit_message_text(f"❌ Wrong answer! {query.from_user.first_name} has been kicked.")
+
             # Remove from pending users
             session = db.get_session()
             try:
-                pending = session.query(PendingUsers).filter(
-                    PendingUsers.chat_id == chat_id,
-                    PendingUsers.user_id == user_id
-                ).first()
-                
+                pending = (
+                    session.query(PendingUsers)
+                    .filter(PendingUsers.chat_id == chat_id, PendingUsers.user_id == user_id)
+                    .first()
+                )
+
                 if pending:
                     session.delete(pending)
                     session.commit()
-            
+
             finally:
                 session.close()
-        
+
         except Exception as e:
             logger.error(f"Error handling wrong captcha: {e}")
 

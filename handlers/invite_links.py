@@ -17,12 +17,12 @@ things in sync:
 * ``LinkJoin`` — one row per attributed join, so totals are queryable even
   though Telegram does not expose per-link member counts.
 """
+
 import logging
 import random
 
-from sqlalchemy import Column, Integer, String, BigInteger, DateTime
+from sqlalchemy import BigInteger, Column, DateTime, Integer, String
 from sqlalchemy.sql import func
-
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -33,23 +33,23 @@ logger = logging.getLogger(__name__)
 
 
 class InviteLink(Base):
-    __tablename__ = 'invite_links'
+    __tablename__ = "invite_links"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     chat_id = Column(BigInteger, index=True)
-    name = Column(String(64), index=True)          # unique per-user token
+    name = Column(String(64), index=True)  # unique per-user token
     invite_link = Column(String(255))
-    created_by = Column(BigInteger)                # user who requested the link
+    created_by = Column(BigInteger)  # user who requested the link
     created_at = Column(DateTime, default=func.now())
 
 
 class LinkJoin(Base):
-    __tablename__ = 'link_joins'
+    __tablename__ = "link_joins"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     chat_id = Column(BigInteger, index=True)
-    invite_name = Column(String(64), index=True)   # matches InviteLink.name
-    user_id = Column(BigInteger)                   # the member who joined
+    invite_name = Column(String(64), index=True)  # matches InviteLink.name
+    user_id = Column(BigInteger)  # the member who joined
     joined_at = Column(DateTime, default=func.now())
 
 
@@ -59,12 +59,12 @@ def update_invite_links_database():
 
 # 22 chars, unambiguous (no 0/O/1/l/I) so the token is easy to read back from
 # Telegram's invite-link "name" field.
-_TOKEN_ALPHABET = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+_TOKEN_ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 _TOKEN_LENGTH = 12
 
 
 def _new_token() -> str:
-    return ''.join(random.choices(_TOKEN_ALPHABET, k=_TOKEN_LENGTH))
+    return "".join(random.choices(_TOKEN_ALPHABET, k=_TOKEN_LENGTH))
 
 
 async def _get_telegram_admins(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
@@ -86,17 +86,21 @@ async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = db.get_session()
     try:
         # Reuse an existing link for this user if we already created one.
-        existing = session.query(InviteLink).filter(
-            InviteLink.chat_id == chat_id,
-            InviteLink.created_by == user.id,
-        ).first()
+        existing = (
+            session.query(InviteLink)
+            .filter(
+                InviteLink.chat_id == chat_id,
+                InviteLink.created_by == user.id,
+            )
+            .first()
+        )
         if existing:
             await update.message.reply_text(
                 f"🔗 **Your invite link for this group:**\n\n"
                 f"{existing.invite_link}\n\n"
                 f"Share it to invite new members. Joins are tracked under your link.\n"
                 f"Check totals with `/link_stat`.",
-                parse_mode='Markdown',
+                parse_mode="Markdown",
             )
             return
 
@@ -108,12 +112,14 @@ async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         invite_url = invite.invite_link
 
-        session.add(InviteLink(
-            chat_id=chat_id,
-            name=token,
-            invite_link=invite_url,
-            created_by=user.id,
-        ))
+        session.add(
+            InviteLink(
+                chat_id=chat_id,
+                name=token,
+                invite_link=invite_url,
+                created_by=user.id,
+            )
+        )
         session.commit()
 
         await update.message.reply_text(
@@ -121,7 +127,7 @@ async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{invite_url}\n\n"
             f"Share it to invite new members. Joins are tracked under your link.\n"
             f"Check totals with `/link_stat`.",
-            parse_mode='Markdown',
+            parse_mode="Markdown",
         )
     finally:
         session.close()
@@ -143,22 +149,25 @@ async def link_stat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         links = session.query(InviteLink).filter(InviteLink.chat_id == chat_id).all()
 
         if not is_admin:
-            links = [l for l in links if l.created_by == user_id]
+            links = [link for link in links if link.created_by == user_id]
 
         if not links:
             await update.message.reply_text(
-                "🔗 No invite links yet.\n"
-                "Use `/link` to create your own unique invite link."
+                "🔗 No invite links yet.\nUse `/link` to create your own unique invite link."
             )
             return
 
         lines = ["🔗 **Invite Link Statistics:**", ""]
         total_joins = 0
         for link in links:
-            count = session.query(LinkJoin).filter(
-                LinkJoin.chat_id == chat_id,
-                LinkJoin.invite_name == link.name,
-            ).count()
+            count = (
+                session.query(LinkJoin)
+                .filter(
+                    LinkJoin.chat_id == chat_id,
+                    LinkJoin.invite_name == link.name,
+                )
+                .count()
+            )
             total_joins += count
             lines.append(f"• `{link.invite_link}` — **{count}** join(s)")
             if is_admin:
@@ -167,7 +176,7 @@ async def link_stat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append("")
         lines.append(f"**Total joins via invite links:** {total_joins}")
 
-        await update.message.reply_text("\n".join(lines), parse_mode='Markdown')
+        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
     finally:
         session.close()
 

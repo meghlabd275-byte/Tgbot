@@ -4,6 +4,7 @@ Shared moderation helpers used by warning_system, filters, reports, etc.
 Centralizes the warning-limit consequence logic so warn_mode (kick/ban/mute/
 tban) is honored anywhere warnings are handed out.
 """
+
 import logging
 from datetime import datetime, timedelta
 
@@ -21,14 +22,14 @@ async def apply_warn_consequence(chat_id: int, user_id: int, actor_id: int, cont
     limit. Returns a human-readable description of the action taken (or '').
     """
     settings = db.get_warn_settings(chat_id)
-    mode = settings.get('mode', 'ban')
+    mode = settings.get("mode", "ban")
 
     try:
-        if mode == 'kick':
+        if mode == "kick":
             await context.bot.ban_chat_member(chat_id, user_id)
             await context.bot.unban_chat_member(chat_id, user_id)
             return "kicked"
-        elif mode == 'mute':
+        elif mode == "mute":
             until_date = datetime.now() + timedelta(hours=1)
             await context.bot.restrict_chat_member(
                 chat_id=chat_id,
@@ -38,7 +39,7 @@ async def apply_warn_consequence(chat_id: int, user_id: int, actor_id: int, cont
             )
             db.add_mute(user_id, chat_id, actor_id, 3600, "Warning limit reached")
             return "muted for 1 hour"
-        elif mode == 'tban':
+        elif mode == "tban":
             until_date = datetime.now() + timedelta(days=1)
             await context.bot.ban_chat_member(chat_id, user_id, until_date=until_date)
             db.add_ban(user_id, chat_id, actor_id, "Warning limit reached (temp ban)")
@@ -56,12 +57,12 @@ def set_warn_mode_command_response(chat_id: int, mode: str):
     """Persist warn_mode and return a friendly confirmation message."""
     db.set_warn_mode(chat_id, mode)
     labels = {
-        'kick': 'kick at warning limit',
-        'mute': 'mute for 1 hour at warning limit',
-        'tban': 'temporarily ban for 1 day at warning limit',
-        'ban': 'ban at warning limit',
+        "kick": "kick at warning limit",
+        "mute": "mute for 1 hour at warning limit",
+        "tban": "temporarily ban for 1 day at warning limit",
+        "ban": "ban at warning limit",
     }
     return f"✅ Warn mode set: **{labels.get(mode, mode)}**"
 
 
-VALID_WARN_MODES = ('kick', 'ban', 'mute', 'tban')
+VALID_WARN_MODES = ("kick", "ban", "mute", "tban")

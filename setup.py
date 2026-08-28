@@ -3,8 +3,8 @@
 Setup script for Telegram Admin Bot
 """
 
-import sys
 import importlib.util
+import sys
 from pathlib import Path
 
 # Modules that must be importable for the bot to run. The optional database
@@ -29,15 +29,15 @@ def create_env_file():
     Returns True when setup may continue (an env file is now present) and
     False only when neither `.env` nor `.env.example` exists.
     """
-    env_file = Path('.env')
-    env_example = Path('.env.example')
+    env_file = Path(".env")
+    env_example = Path(".env.example")
 
     if env_file.exists():
         return True
 
     if env_example.exists():
         print("Creating .env file from template...")
-        with open(env_example, 'r') as src, open(env_file, 'w') as dst:
+        with open(env_example) as src, open(env_file, "w") as dst:
             dst.write(src.read())
         print("✅ .env file created. Edit it with your bot token and settings.")
         return True
@@ -61,6 +61,7 @@ def test_config():
     """Test if configuration is valid"""
     try:
         from config import Config
+
         Config.validate()
         print("✅ Configuration is valid.")
         return True
@@ -73,11 +74,13 @@ def setup_database():
     """Initialize the database"""
     try:
         from database import db  # noqa: F401  (import verifies schema creation)
+
         print("✅ Database initialized successfully.")
         return True
     except Exception as e:
         print(f"❌ Database setup error: {e}")
         return False
+
 
 def main():
     """Main setup function"""
@@ -85,8 +88,8 @@ def main():
     print("=" * 30)
 
     # Check Python version
-    if sys.version_info < (3, 9):
-        print("❌ Python 3.9 or higher is required.")
+    if sys.version_info < (3, 12):  # noqa: UP036 -- runtime setup aid
+        print("❌ Python 3.12 or higher is required.")
         return False
 
     print(f"✅ Python {sys.version_info.major}.{sys.version_info.minor} detected.")
@@ -97,15 +100,16 @@ def main():
 
     # Create .env file if it doesn't exist yet. We remember whether it existed
     # so we can tell the user to edit it afterwards.
-    env_existed = Path('.env').exists()
+    env_existed = Path(".env").exists()
     if not create_env_file():
         return False
 
     # Validate configuration (BOT_TOKEN/BOT_USERNAME/SUPER_ADMIN_ID)
     if not test_config():
         if not env_existed:
-            print("Hint: edit .env and fill in BOT_TOKEN, BOT_USERNAME and "
-                  "SUPER_ADMIN_ID, then re-run `python setup.py`.")
+            print(
+                "Hint: edit .env and fill in BOT_TOKEN, BOT_USERNAME and SUPER_ADMIN_ID, then re-run `python setup.py`."
+            )
         return False
 
     # Setup database
@@ -121,6 +125,7 @@ def main():
 
     return True
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)

@@ -1,6 +1,6 @@
-import re
 import functools
-from typing import Optional
+import re
+
 from telegram import Update, User
 from telegram.ext import ContextTypes
 
@@ -9,30 +9,30 @@ from telegram.ext import ContextTypes
 # ---------------------------------------------------------------------------
 
 _TIME_MULTIPLIERS = {
-    's': 1,
-    'sec': 1,
-    'secs': 1,
-    'second': 1,
-    'seconds': 1,
-    'm': 60,
-    'min': 60,
-    'mins': 60,
-    'minute': 60,
-    'minutes': 60,
-    'h': 3600,
-    'hr': 3600,
-    'hrs': 3600,
-    'hour': 3600,
-    'hours': 3600,
-    'd': 86400,
-    'day': 86400,
-    'days': 86400,
-    'w': 604800,
-    'week': 604800,
-    'weeks': 604800,
+    "s": 1,
+    "sec": 1,
+    "secs": 1,
+    "second": 1,
+    "seconds": 1,
+    "m": 60,
+    "min": 60,
+    "mins": 60,
+    "minute": 60,
+    "minutes": 60,
+    "h": 3600,
+    "hr": 3600,
+    "hrs": 3600,
+    "hour": 3600,
+    "hours": 3600,
+    "d": 86400,
+    "day": 86400,
+    "days": 86400,
+    "w": 604800,
+    "week": 604800,
+    "weeks": 604800,
 }
 
-_TIME_PATTERN = re.compile(r'^\s*(\d+)\s*([a-zA-Z]*)\s*$')
+_TIME_PATTERN = re.compile(r"^\s*(\d+)\s*([a-zA-Z]*)\s*$")
 
 
 def parse_time_string(time_str) -> int:
@@ -54,7 +54,7 @@ def parse_time_string(time_str) -> int:
         return 3600
 
     number = int(match.group(1))
-    unit = (match.group(2) or 'm').lower()
+    unit = (match.group(2) or "m").lower()
     multiplier = _TIME_MULTIPLIERS.get(unit, 60)
     return number * multiplier
 
@@ -79,39 +79,38 @@ def format_time_duration(seconds: int) -> str:
     return " ".join(parts)
 
 
-def get_user_from_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Optional[tuple]:
+def get_user_from_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> tuple | None:
     """
     Extract user information from command arguments or replied message.
     Returns tuple of (user_id, user_object) or None if no user found.
     """
     message = update.effective_message
-    
+
     # Check if replying to a message
     if message.reply_to_message and message.reply_to_message.from_user:
         user = message.reply_to_message.from_user
         return user.id, user
-    
+
     # Check command arguments
     if context.args:
         arg = context.args[0]
-        
+
         # Check if it's a user ID (numeric)
         if arg.isdigit():
             user_id = int(arg)
             return user_id, None
-        
+
         # Resolve a bare @username against the bot's local user directory.
         # Telegram's Bot API offers no username->id lookup for private users,
         # so we fall back to the users we have previously seen in any chat.
-        if arg.startswith('@'):
-            username = arg.lstrip('@').lower()
+        if arg.startswith("@"):
+            username = arg.lstrip("@").lower()
             try:
                 from database import db
+
                 session = db.get_session()
                 try:
-                    row = session.query(db.User).filter(
-                        db.User.username.ilike(username)
-                    ).first()
+                    row = session.query(db.User).filter(db.User.username.ilike(username)).first()
                     if row is not None:
                         return row.id, row
                 finally:
@@ -119,8 +118,9 @@ def get_user_from_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             except Exception:
                 pass
             return None
-    
+
     return None
+
 
 def format_user_mention(user: User) -> str:
     """Format user mention for display"""
@@ -134,12 +134,14 @@ def format_user_mention(user: User) -> str:
             name += f" {user.last_name}"
         return f"[{name}](tg://user?id={user.id})"
 
+
 def is_admin_command(func):
     """Decorator to check if user is admin before executing command"""
+
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        from database import db
         from config import Config
+        from database import db
 
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
@@ -148,6 +150,7 @@ def is_admin_command(func):
         # connected their PM to a group can run admin commands from there.
         try:
             from handlers.connections import get_effective_chat_id
+
             chat_id = get_effective_chat_id(update, context)
         except Exception:
             chat_id = update.effective_chat.id
@@ -157,8 +160,7 @@ def is_admin_command(func):
         # still act (e.g. /resume from inside the disabled group).
         if db.is_chat_disabled(chat_id) and user_id not in Config.super_admin_ids():
             await update.message.reply_text(
-                "🛑 This group's bot services are disabled by the bot owner. "
-                "Only the owner can resume them."
+                "🛑 This group's bot services are disabled by the bot owner. Only the owner can resume them."
             )
             return None
 
@@ -178,18 +180,20 @@ def is_admin_command(func):
 
     return wrapper
 
+
 def is_group_command(func):
     """Decorator to ensure command is used in a group (or via a private-chat
     connection to a group)."""
+
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if update.effective_chat.type == 'private':
+        if update.effective_chat.type == "private":
             try:
                 from handlers.connections import get_connection
+
                 if not get_connection(update.effective_user.id):
                     await update.message.reply_text(
-                        "❌ This command can only be used in groups.\n"
-                        "Connect to a group first with `/connect <chat>`."
+                        "❌ This command can only be used in groups.\nConnect to a group first with `/connect <chat>`."
                     )
                     return
             except Exception:
@@ -200,12 +204,14 @@ def is_group_command(func):
 
     return wrapper
 
+
 def is_super_admin_command(func):
     """Decorator: only the bot owner (super admin) can run this command.
 
     This is intentionally stricter than `is_admin_command`: group admins canNOT
     use owner-only commands (e.g. disabling/resuming a group's services).
     """
+
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from config import Config
@@ -214,19 +220,18 @@ def is_super_admin_command(func):
         if user_id in Config.super_admin_ids():
             return await func(update, context)
 
-        await update.message.reply_text(
-            "❌ This command is reserved for the bot owner (super admin)."
-        )
+        await update.message.reply_text("❌ This command is reserved for the bot owner (super admin).")
         return None
 
     return wrapper
 
+
 def is_owner_command(func):
     """Decorator: only the group creator/owner (or a super admin) can run it."""
+
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from config import Config
-        from database import db
 
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
@@ -245,18 +250,21 @@ def is_owner_command(func):
 
     return wrapper
 
+
 def escape_markdown(text: str) -> str:
     """Escape markdown special characters"""
-    escape_chars = r'_*[]()~`>#+-=|{}.!'
-    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
+    escape_chars = r"_*[]()~`>#+-=|{}.!"
+    return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", text)
+
 
 async def is_telegram_admin(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int) -> bool:
     """Ask Telegram directly whether `user_id` is an admin/owner of `chat_id`."""
     try:
         member = await context.bot.get_chat_member(chat_id, user_id)
-        return str(member.status) in ('administrator', 'creator')
+        return str(member.status) in ("administrator", "creator")
     except Exception:
         return False
+
 
 async def get_telegram_admins(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     """Return the list of Telegram admin users for a chat."""
@@ -266,19 +274,22 @@ async def get_telegram_admins(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     except Exception:
         return None
 
+
 async def is_telegram_owner(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int) -> bool:
     """Ask Telegram directly whether `user_id` is the group creator/owner."""
     try:
         member = await context.bot.get_chat_member(chat_id, user_id)
-        return str(member.status) == 'creator'
+        return str(member.status) == "creator"
     except Exception:
         return False
 
+
 def get_chat_admins_cache():
     """Simple in-memory cache for chat admins"""
-    if not hasattr(get_chat_admins_cache, 'cache'):
+    if not hasattr(get_chat_admins_cache, "cache"):
         get_chat_admins_cache.cache = {}
     return get_chat_admins_cache.cache
+
 
 async def update_chat_admins_cache(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     """Update the chat admins cache"""
@@ -290,6 +301,7 @@ async def update_chat_admins_cache(context: ContextTypes.DEFAULT_TYPE, chat_id: 
     except Exception:
         return False
 
+
 async def sync_telegram_admins(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     """
     Register all current Telegram admins/owner of a chat in the bot's local
@@ -297,6 +309,7 @@ async def sync_telegram_admins(context: ContextTypes.DEFAULT_TYPE, chat_id: int)
     and every other admin of that group works in any group the bot is in.
     """
     from database import db
+
     try:
         admins = await context.bot.get_chat_administrators(chat_id)
         db.get_or_create_chat(chat_id)
@@ -308,7 +321,8 @@ async def sync_telegram_admins(context: ContextTypes.DEFAULT_TYPE, chat_id: int)
     except Exception:
         return False
 
-def get_file_id_from_message(message) -> Optional[str]:
+
+def get_file_id_from_message(message) -> str | None:
     """Extract file ID from various message types"""
     if message.photo:
         return message.photo[-1].file_id  # Get highest resolution
@@ -326,5 +340,5 @@ def get_file_id_from_message(message) -> Optional[str]:
         return message.sticker.file_id
     elif message.animation:
         return message.animation.file_id
-    
+
     return None

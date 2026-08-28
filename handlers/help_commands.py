@@ -1,6 +1,7 @@
 from telegram import Update
-from telegram.ext import ContextTypes
 from telegram.constants import MessageLimit
+from telegram.ext import ContextTypes
+
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show help message with all available commands"""
@@ -229,10 +230,10 @@ Contact the bot administrator or check the documentation for more details.
     # text in one message, which raised an error and showed the user nothing.)
     max_len = MessageLimit.MAX_TEXT_LENGTH - 16  # margin for markdown entity offsets
     if len(help_text) <= max_len:
-        await update.message.reply_text(help_text, parse_mode='Markdown')
+        await update.message.reply_text(help_text, parse_mode="Markdown")
         return
 
-    sections = [s.strip() for s in help_text.split('\n\n')]
+    sections = [s.strip() for s in help_text.split("\n\n")]
     chunks = []
     current = ""
     for section in sections:
@@ -246,14 +247,15 @@ Contact the bot administrator or check the documentation for more details.
         chunks.append(current)
 
     for chunk in chunks:
-        await update.message.reply_text(chunk, parse_mode='Markdown')
+        await update.message.reply_text(chunk, parse_mode="Markdown")
+
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start command - welcome message"""
     user = update.effective_user
     chat = update.effective_chat
 
-    if chat.type == 'private':
+    if chat.type == "private":
         start_text = f"""
 👋 **Welcome {user.first_name}!**
 
@@ -303,7 +305,8 @@ I'm ready to help manage this group. Here's what you need to know:
 Let's get started! Use `/help` for the full command list.
         """
 
-    await update.message.reply_text(start_text.strip(), parse_mode='Markdown')
+    await update.message.reply_text(start_text.strip(), parse_mode="Markdown")
+
 
 async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """About command - bot information"""
@@ -337,7 +340,8 @@ For issues, suggestions, or questions, contact the bot administrator.
 This bot only stores necessary moderation data and respects user privacy.
     """
 
-    await update.message.reply_text(about_text.strip(), parse_mode='Markdown')
+    await update.message.reply_text(about_text.strip(), parse_mode="Markdown")
+
 
 async def commands_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show a quick command reference (owner sees the full super-admin docs too)"""
@@ -378,16 +382,16 @@ async def commands_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Use `/help` for the complete list with detailed descriptions.
     """
 
-    await update.message.reply_text(commands_text.strip(), parse_mode='Markdown')
+    await update.message.reply_text(commands_text.strip(), parse_mode="Markdown")
 
     # Super-admin commands are appended for the owner only.
     user_id = update.effective_user.id
     from config import Config
+
     if user_id in Config.super_admin_ids():
         try:
             from handlers.owner import _super_admin_commands_doc
-            await update.message.reply_text(
-                _super_admin_commands_doc(), parse_mode='Markdown'
-            )
+
+            await update.message.reply_text(_super_admin_commands_doc(), parse_mode="Markdown")
         except Exception:
             pass

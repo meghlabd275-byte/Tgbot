@@ -5,11 +5,9 @@ A comprehensive bot for managing Telegram groups with advanced moderation featur
 """
 
 import logging
+
 from telegram import Update
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler, ChatMemberHandler,
-    filters, ContextTypes
-)
+from telegram.ext import Application, ChatMemberHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 # Import configuration and database
 from config import Config
@@ -17,136 +15,181 @@ from database import db
 
 # Import all handlers
 from handlers.admin_commands import (
-    fileid_command, activate_command, silence_command, unsilence_command,
-    underattack_command, ua_command, reload_command, debug_command,
-    pin_command, unpin_command, purge_command, del_command, spurge_command,
-    adminlist_command, warnmode_command
+    activate_command,
+    adminlist_command,
+    debug_command,
+    del_command,
+    fileid_command,
+    pin_command,
+    purge_command,
+    reload_command,
+    silence_command,
+    spurge_command,
+    ua_command,
+    underattack_command,
+    unpin_command,
+    unsilence_command,
+    warnmode_command,
 )
-
-from handlers.user_management import (
-    promote_command, title_command, demote_command,
-    ban_command, sban_command, gban_command, sgban_command,
-    unban_command, gunban_command, banlist_command,
-    kick_command, skick_command, gkick_command,
-    mute_command, unmute_command, smute_command
-)
-
-from handlers.warning_system import (
-    warn_command, gwarn_command, swarn_command,
-    unwarn_command, resetwarns_command, warnings_command
-)
-
-from handlers.whitelist_system import (
-    whitelist_command, gwhitelist_command, unwhitelist_command,
-    gunwhitelist_command, whitelisted_command, checkwhitelist_command
-)
-
-from handlers.user_info import (
-    resetuser_command, resetrep_command, user_command,
-    lastactive_command, id_command, chatinfo_command
-)
-
-from handlers.verification import (
-    verify_command, handle_forwarded_message
-)
-
-from handlers.help_commands import (
-    help_command, start_command, about_command, commands_command
-)
-
-from handlers.events import (
-    handle_message,
-    handle_chat_member_update, handle_bot_added_to_chat, error_handler
+from handlers.advanced_features import (
+    addcmd_command,
+    backup_command,
+    check_night_mode,
+    check_slow_mode,
+    cleanup_command,
+    delcmd_command,
+    handle_cleanup_confirmation,
+    handle_custom_command,
+    listcmds_command,
+    nightmode_command,
+    setlang_command,
+    slowmode_command,
 )
 
 # Import new advanced handlers
-from handlers.antiflood import (
-    setflood_command, setfloodmode_command, flood_command, check_flood,
-    antiraid_command
-)
-
-from handlers.filters import (
-    addfilter_command, removefilter_command, filters_command,
-    lock_command, unlock_command, locks_command, antispam_command,
-    locktypes_command, allowlist_command, unallowlist_command,
-    check_message_filters
-)
-
-from handlers.welcome import (
-    setwelcome_command, setgoodbye_command, welcome_command, goodbye_command,
-    captcha_command, cleanservice_command, joinhider_command,
-    setwelcomebutton_command, welcomebuttons_command, delwelcomebutton_command,
-    welcomedelete_command,
-    handle_new_member_welcome, handle_left_member_goodbye, handle_captcha_callback,
-    handle_service_message
-)
-
-from handlers.quick_replies import (
-    setcontract_command, delcontract_command, contracts_command,
-    setkeywordlink_command, delkeywordlink_command, keywordlinks_command,
-    greetingfilter_command, handle_quick_replies
-)
-
-from handlers.url_remover import (
-    removeurls_command
-)
-
-from handlers.notes import (
-    save_command, get_command, clear_command, notes_command,
-    setrules_command, rules_command, clearrules_command, handle_note_shortcut
-)
-
-from handlers.reports import (
-    report_command, reports_command, reporthistory_command, handle_report_callback
-)
-
-from handlers.advanced_features import (
-    setlang_command, nightmode_command, slowmode_command,
-    addcmd_command, delcmd_command, listcmds_command, cleanup_command,
-    backup_command, handle_custom_command, check_night_mode,
-    handle_cleanup_confirmation, check_slow_mode
-)
-
-from handlers.federations import (
-    fednew_command, feddel_command, fedrename_command, fedinfo_command,
-    fedadmins_command, fedpromote_command, feddemote_command,
-    fedjoin_command, fedleave_command, fedchat_command,
-    fedban_command, fedunban_command, fedkick_command, fedmute_command,
-    fedbans_command
-)
-
-from handlers.connections import (
-    connect_command, handle_connect_callback, disconnect_command,
-    connection_command, reconnect_command
-)
-
+from handlers.antiflood import antiraid_command, check_flood, flood_command, setflood_command, setfloodmode_command
 from handlers.approvals import (
-    approve_command, unapprove_command, approval_command, approved_command,
-    unapproveall_command, ignore_command, unignore_command, ignored_command
+    approval_command,
+    approve_command,
+    approved_command,
+    ignore_command,
+    ignored_command,
+    unapprove_command,
+    unapproveall_command,
+    unignore_command,
 )
-
-from handlers.services import (
-    disable_command, resume_command, disabledgroups_command
+from handlers.connections import (
+    connect_command,
+    connection_command,
+    disconnect_command,
+    handle_connect_callback,
+    reconnect_command,
 )
-
-from handlers.invite_links import (
-    link_command, link_stat_command
+from handlers.events import error_handler, handle_bot_added_to_chat, handle_chat_member_update, handle_message
+from handlers.federations import (
+    fedadmins_command,
+    fedban_command,
+    fedbans_command,
+    fedchat_command,
+    feddel_command,
+    feddemote_command,
+    fedinfo_command,
+    fedjoin_command,
+    fedkick_command,
+    fedleave_command,
+    fedmute_command,
+    fednew_command,
+    fedpromote_command,
+    fedrename_command,
+    fedunban_command,
 )
-
-from handlers.user_commands import (
-    usercmd_command, handle_user_command
+from handlers.filters import (
+    addfilter_command,
+    allowlist_command,
+    antispam_command,
+    check_message_filters,
+    filters_command,
+    lock_command,
+    locks_command,
+    locktypes_command,
+    removefilter_command,
+    unallowlist_command,
+    unlock_command,
 )
-
-from handlers.stats import (
-    stats_command, top_command
+from handlers.help_commands import about_command, commands_command, help_command, start_command
+from handlers.invite_links import link_command, link_stat_command
+from handlers.notes import (
+    clear_command,
+    clearrules_command,
+    get_command,
+    handle_note_shortcut,
+    notes_command,
+    rules_command,
+    save_command,
+    setrules_command,
+)
+from handlers.quick_replies import (
+    contracts_command,
+    delcontract_command,
+    delkeywordlink_command,
+    greetingfilter_command,
+    handle_quick_replies,
+    keywordlinks_command,
+    setcontract_command,
+    setkeywordlink_command,
+)
+from handlers.reports import handle_report_callback, report_command, reporthistory_command, reports_command
+from handlers.services import disable_command, disabledgroups_command, resume_command
+from handlers.stats import stats_command, top_command
+from handlers.url_remover import removeurls_command
+from handlers.user_commands import handle_user_command, usercmd_command
+from handlers.user_info import (
+    chatinfo_command,
+    id_command,
+    lastactive_command,
+    resetrep_command,
+    resetuser_command,
+    user_command,
+)
+from handlers.user_management import (
+    ban_command,
+    banlist_command,
+    demote_command,
+    gban_command,
+    gkick_command,
+    gunban_command,
+    kick_command,
+    mute_command,
+    promote_command,
+    sban_command,
+    sgban_command,
+    skick_command,
+    smute_command,
+    title_command,
+    unban_command,
+    unmute_command,
+)
+from handlers.verification import handle_forwarded_message, verify_command
+from handlers.warning_system import (
+    gwarn_command,
+    resetwarns_command,
+    swarn_command,
+    unwarn_command,
+    warn_command,
+    warnings_command,
+)
+from handlers.welcome import (
+    captcha_command,
+    cleanservice_command,
+    delwelcomebutton_command,
+    goodbye_command,
+    handle_captcha_callback,
+    handle_left_member_goodbye,
+    handle_new_member_welcome,
+    handle_service_message,
+    joinhider_command,
+    setgoodbye_command,
+    setwelcome_command,
+    setwelcomebutton_command,
+    welcome_command,
+    welcomebuttons_command,
+    welcomedelete_command,
+)
+from handlers.whitelist_system import (
+    checkwhitelist_command,
+    gunwhitelist_command,
+    gwhitelist_command,
+    unwhitelist_command,
+    whitelist_command,
+    whitelisted_command,
 )
 
 # Configure logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=getattr(logging, Config.LOG_LEVEL.upper())
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=getattr(logging, Config.LOG_LEVEL.upper())
 )
 logger = logging.getLogger(__name__)
+
 
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Combined message handler for all filters and checks"""
@@ -180,6 +223,7 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         # Ignored users: the bot takes no automated action against them.
         from handlers.approvals import is_ignored
+
         if update.effective_user and is_ignored(update.effective_user.id, chat_id):
             return
 
@@ -216,6 +260,7 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         logger.error(f"Error in handle_all_messages: {e}")
         await error_handler(update, context)
+
 
 def _register_handlers(application):
     """Register every command and event handler on the given application.
@@ -422,9 +467,13 @@ def _register_handlers(application):
 
     # Super-admin fleet commands: /groups, /clone, /clone_bots, /bot*, /commands
     from handlers.owner import (
-        groups_command, clone_bots_command, bot_command, botdel_command,
+        bot_command,
+        botdel_command,
+        clone_bots_command,
         clone_conversation_handler,
+        groups_command,
     )
+
     application.add_handler(CommandHandler("groups", groups_command))
     application.add_handler(clone_conversation_handler())
     application.add_handler(CommandHandler("clone_bots", clone_bots_command))
@@ -448,88 +497,53 @@ def _register_handlers(application):
     application.add_handler(CommandHandler("leaderboard", top_command))
 
     # Event handlers
-    application.add_handler(MessageHandler(
-        filters.StatusUpdate.NEW_CHAT_MEMBERS,
-        handle_new_member_welcome
-    ))
+    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, handle_new_member_welcome))
 
-    application.add_handler(MessageHandler(
-        filters.StatusUpdate.LEFT_CHAT_MEMBER,
-        handle_left_member_goodbye
-    ))
+    application.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, handle_left_member_goodbye))
 
     # Delete ALL other service messages (pinned, title change, photo change,
     # group created, etc.) when 'delete_all_system_msg' or legacy
     # 'delete_service' is on. Excludes join/leave (handled above).
-    application.add_handler(MessageHandler(
-        filters.StatusUpdate.ALL
-        & ~filters.StatusUpdate.NEW_CHAT_MEMBERS
-        & ~filters.StatusUpdate.LEFT_CHAT_MEMBER,
-        handle_service_message
-    ))
+    application.add_handler(
+        MessageHandler(
+            filters.StatusUpdate.ALL & ~filters.StatusUpdate.NEW_CHAT_MEMBERS & ~filters.StatusUpdate.LEFT_CHAT_MEMBER,
+            handle_service_message,
+        )
+    )
 
     # Handle forwarded messages for verification (private chats only)
-    application.add_handler(MessageHandler(
-        filters.FORWARDED & filters.ChatType.PRIVATE,
-        handle_forwarded_message
-    ))
+    application.add_handler(MessageHandler(filters.FORWARDED & filters.ChatType.PRIVATE, handle_forwarded_message))
 
     # Custom command fallback (admin-configured via /addcmd): any "/command"
     # that did not match a registered CommandHandler above is dispatched to
     # handle_custom_command. This runs AFTER every CommandHandler so built-in
     # commands always take precedence over user-created ones.
-    application.add_handler(MessageHandler(
-        filters.COMMAND,
-        handle_custom_command
-    ))
+    application.add_handler(MessageHandler(filters.COMMAND, handle_custom_command))
 
     # Chat member updates (promotions, bans, etc.)
-    application.add_handler(ChatMemberHandler(
-        handle_chat_member_update,
-        ChatMemberHandler.CHAT_MEMBER
-    ))
+    application.add_handler(ChatMemberHandler(handle_chat_member_update, ChatMemberHandler.CHAT_MEMBER))
 
     # Bot's own membership changes (added to / removed from a chat).
     # On add, register the chat and auto-sync its admins so the admin who
     # added the bot can immediately configure the group.
-    application.add_handler(ChatMemberHandler(
-        handle_bot_added_to_chat,
-        ChatMemberHandler.MY_CHAT_MEMBER
-    ))
+    application.add_handler(ChatMemberHandler(handle_bot_added_to_chat, ChatMemberHandler.MY_CHAT_MEMBER))
 
     # Callback query handlers
     from telegram.ext import CallbackQueryHandler
-    application.add_handler(CallbackQueryHandler(
-        handle_captcha_callback,
-        pattern=r"^captcha_"
-    ))
-    application.add_handler(CallbackQueryHandler(
-        handle_report_callback,
-        pattern=r"^report_"
-    ))
-    application.add_handler(CallbackQueryHandler(
-        handle_connect_callback,
-        pattern=r"^connect_"
-    ))
+
+    application.add_handler(CallbackQueryHandler(handle_captcha_callback, pattern=r"^captcha_"))
+    application.add_handler(CallbackQueryHandler(handle_report_callback, pattern=r"^report_"))
+    application.add_handler(CallbackQueryHandler(handle_connect_callback, pattern=r"^connect_"))
 
     # General message handler (should be last)
-    application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
-        handle_all_messages
-    ))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
 
     # Media message handler for filters
-    application.add_handler(MessageHandler(
-        ~filters.COMMAND & ~filters.StatusUpdate.ALL,
-        handle_all_messages
-    ))
+    application.add_handler(MessageHandler(~filters.COMMAND & ~filters.StatusUpdate.ALL, handle_all_messages))
 
     # Edited message handler — re-run filters (URL remover, word/url/spam/media)
     # so that users cannot bypass link/word filters by editing a message after posting.
-    application.add_handler(MessageHandler(
-        filters.UpdateType.EDITED_MESSAGE & ~filters.COMMAND,
-        handle_all_messages
-    ))
+    application.add_handler(MessageHandler(filters.UpdateType.EDITED_MESSAGE & ~filters.COMMAND, handle_all_messages))
 
     # Kept from original main():
     application.add_error_handler(error_handler)
@@ -537,7 +551,7 @@ def _register_handlers(application):
     logger.info("Bot handlers registered successfully")
 
 
-def build_application(token: str = None, start_clones: bool = True):
+def build_application(token: str | None = None, start_clones: bool = True):
     """Build a fully-configured PTB Application with every command and event handler.
 
     Tokens are used only to construct the application; handlers read the
@@ -552,6 +566,7 @@ def build_application(token: str = None, start_clones: bool = True):
     if start_clones:
         try:
             from handlers.clonebot import start_clone_supervisor
+
             start_clone_supervisor()
         except Exception as e:
             logger.error(f"Failed to start clone supervisor: {e}")
@@ -572,14 +587,11 @@ def main():
         # and returns a fully-configured application for the main bot.
         application = build_application()
         logger.info("🤖 Starting main Telegram Admin Bot...")
-        application.run_polling(
-            allowed_updates=Update.ALL_TYPES,
-            drop_pending_updates=True
-        )
+        application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Failed to start bot: {e}")
         raise
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

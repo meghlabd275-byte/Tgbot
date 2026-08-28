@@ -22,27 +22,31 @@ Commands:
   /fedmute <user> <time>         mute across federation chats
   /fedbans                       list federation bans
 """
+
 import logging
 import uuid
+from datetime import datetime, timedelta
 
-from sqlalchemy import Column, Integer, String, Text, BigInteger, DateTime
+from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Text
 from sqlalchemy.sql import func
-
-from telegram import Update, ChatPermissions
+from telegram import ChatPermissions, Update
 from telegram.ext import ContextTypes
 
 from database import Base, db
 from utils import (
-    is_admin_command, is_group_command, get_user_from_message,
-    format_user_mention, parse_time_string, format_time_duration,
+    format_time_duration,
+    format_user_mention,
+    get_user_from_message,
+    is_admin_command,
+    is_group_command,
+    parse_time_string,
 )
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
 
 class Federation(Base):
-    __tablename__ = 'federations'
+    __tablename__ = "federations"
 
     id = Column(String(36), primary_key=True)
     name = Column(String(255))
@@ -51,7 +55,7 @@ class Federation(Base):
 
 
 class FederationAdmin(Base):
-    __tablename__ = 'federation_admins'
+    __tablename__ = "federation_admins"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     fed_id = Column(String(36))
@@ -60,7 +64,7 @@ class FederationAdmin(Base):
 
 
 class FederationChat(Base):
-    __tablename__ = 'federation_chats'
+    __tablename__ = "federation_chats"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     fed_id = Column(String(36))
@@ -70,7 +74,7 @@ class FederationChat(Base):
 
 
 class FederationBan(Base):
-    __tablename__ = 'federation_bans'
+    __tablename__ = "federation_bans"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     fed_id = Column(String(36))
@@ -81,7 +85,7 @@ class FederationBan(Base):
 
 
 class FederationMute(Base):
-    __tablename__ = 'federation_mutes'
+    __tablename__ = "federation_mutes"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     fed_id = Column(String(36))
@@ -99,6 +103,7 @@ def update_federations_database():
 # ---------------------------------------------------------------------------
 # Federation helpers
 # ---------------------------------------------------------------------------
+
 
 def get_federation_by_owner(owner_id: int):
     session = db.get_session()
@@ -134,10 +139,12 @@ def is_fed_admin(fed_id: str, user_id: int) -> bool:
         fed = session.query(Federation).filter(Federation.id == fed_id).first()
         if fed and fed.owner_id == user_id:
             return True
-        return session.query(FederationAdmin).filter(
-            FederationAdmin.fed_id == fed_id,
-            FederationAdmin.user_id == user_id
-        ).first() is not None
+        return (
+            session.query(FederationAdmin)
+            .filter(FederationAdmin.fed_id == fed_id, FederationAdmin.user_id == user_id)
+            .first()
+            is not None
+        )
     finally:
         session.close()
 
@@ -145,10 +152,12 @@ def is_fed_admin(fed_id: str, user_id: int) -> bool:
 def is_user_fed_banned(fed_id: str, user_id: int) -> bool:
     session = db.get_session()
     try:
-        return session.query(FederationBan).filter(
-            FederationBan.fed_id == fed_id,
-            FederationBan.user_id == user_id
-        ).first() is not None
+        return (
+            session.query(FederationBan)
+            .filter(FederationBan.fed_id == fed_id, FederationBan.user_id == user_id)
+            .first()
+            is not None
+        )
     finally:
         session.close()
 
@@ -157,7 +166,7 @@ def get_fed_chat_ids(fed_id: str):
     session = db.get_session()
     try:
         links = session.query(FederationChat).filter(FederationChat.fed_id == fed_id).all()
-        return [l.chat_id for l in links]
+        return [link.chat_id for link in links]
     finally:
         session.close()
 
@@ -175,17 +184,17 @@ def get_user_fed_bans(user_id: int):
 # Commands
 # ---------------------------------------------------------------------------
 
+
 async def fednew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Create a new federation owned by the caller."""
     user_id = update.effective_user.id
-    name = ' '.join(context.args) if context.args else "My Federation"
+    name = " ".join(context.args) if context.args else "My Federation"
 
     session = db.get_session()
     try:
         existing = session.query(Federation).filter(Federation.owner_id == user_id).first()
         if existing:
-            await update.message.reply_text(
-                "❌ You already own a federation. You can only own one.")
+            await update.message.reply_text("❌ You already own a federation. You can only own one.")
             return
 
         fed_id = uuid.uuid4().hex
@@ -196,7 +205,7 @@ async def fednew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"**Federation ID:** `{fed_id}`\n\n"
             f"Use `/fedjoin {fed_id}` in your group to join it, or `/fedban` "
             f"and `/fedpromote` to manage it.",
-            parse_mode='Markdown',
+            parse_mode="Markdown",
         )
     finally:
         session.close()
@@ -227,9 +236,9 @@ async def fedrename_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Rename the federation you own."""
     user_id = update.effective_user.id
     if not context.args:
-        await update.message.reply_text("❌ Usage: `/fedrename <new name>`", parse_mode='Markdown')
+        await update.message.reply_text("❌ Usage: `/fedrename <new name>`", parse_mode="Markdown")
         return
-    name = ' '.join(context.args)
+    name = " ".join(context.args)
 
     session = db.get_session()
     try:
@@ -239,7 +248,7 @@ async def fedrename_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         fed.name = name
         session.commit()
-        await update.message.reply_text(f"✅ Federation renamed to **{name}**.", parse_mode='Markdown')
+        await update.message.reply_text(f"✅ Federation renamed to **{name}**.", parse_mode="Markdown")
     finally:
         session.close()
 
@@ -251,8 +260,7 @@ async def fedinfo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
         fed = get_federation_for_chat(chat_id)
         if not fed:
-            fed = session.query(Federation).filter(
-                Federation.owner_id == update.effective_user.id).first()
+            fed = session.query(Federation).filter(Federation.owner_id == update.effective_user.id).first()
         if not fed:
             await update.message.reply_text("❌ No federation found. Create one with `/fednew`.")
             return
@@ -261,14 +269,16 @@ async def fedinfo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ban_count = session.query(FederationBan).filter(FederationBan.fed_id == fed.id).count()
         chat_count = session.query(FederationChat).filter(FederationChat.fed_id == fed.id).count()
 
-        msg = (f"🏰 **{fed.name}**\n\n"
-               f"**Federation ID:** `{fed.id}`\n"
-               f"**Owner:** `{fed.owner_id}`\n"
-               f"**Admins:** {admin_count}\n"
-               f"**Bans:** {ban_count}\n"
-               f"**Connected chats:** {chat_count}\n"
-               f"**Created:** {fed.created_at.strftime('%Y-%m-%d %H:%M')}")
-        await update.message.reply_text(msg, parse_mode='Markdown')
+        msg = (
+            f"🏰 **{fed.name}**\n\n"
+            f"**Federation ID:** `{fed.id}`\n"
+            f"**Owner:** `{fed.owner_id}`\n"
+            f"**Admins:** {admin_count}\n"
+            f"**Bans:** {ban_count}\n"
+            f"**Connected chats:** {chat_count}\n"
+            f"**Created:** {fed.created_at.strftime('%Y-%m-%d %H:%M')}"
+        )
+        await update.message.reply_text(msg, parse_mode="Markdown")
     finally:
         session.close()
 
@@ -287,7 +297,7 @@ async def fedadmins_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"👑 Owner: `{fed.owner_id}`\n"
         for a in admins:
             msg += f"• `{a.user_id}`\n"
-        await update.message.reply_text(msg, parse_mode='Markdown')
+        await update.message.reply_text(msg, parse_mode="Markdown")
     finally:
         session.close()
 
@@ -309,13 +319,16 @@ async def fedpromote_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if not fed:
             await update.message.reply_text("❌ You don't own a federation.")
             return
-        exists = session.query(FederationAdmin).filter(
-            FederationAdmin.fed_id == fed.id, FederationAdmin.user_id == target_id).first()
+        exists = (
+            session.query(FederationAdmin)
+            .filter(FederationAdmin.fed_id == fed.id, FederationAdmin.user_id == target_id)
+            .first()
+        )
         if not exists:
             session.add(FederationAdmin(fed_id=fed.id, user_id=target_id))
             session.commit()
         mention = format_user_mention(target_obj) if target_obj else f"User `{target_id}`"
-        await update.message.reply_text(f"✅ {mention} is now a federation admin.", parse_mode='Markdown')
+        await update.message.reply_text(f"✅ {mention} is now a federation admin.", parse_mode="Markdown")
     finally:
         session.close()
 
@@ -337,13 +350,16 @@ async def feddemote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not fed:
             await update.message.reply_text("❌ You don't own a federation.")
             return
-        row = session.query(FederationAdmin).filter(
-            FederationAdmin.fed_id == fed.id, FederationAdmin.user_id == target_id).first()
+        row = (
+            session.query(FederationAdmin)
+            .filter(FederationAdmin.fed_id == fed.id, FederationAdmin.user_id == target_id)
+            .first()
+        )
         if row:
             session.delete(row)
             session.commit()
             mention = format_user_mention(target_obj) if target_obj else f"User `{target_id}`"
-            await update.message.reply_text(f"✅ {mention} removed from federation admins.", parse_mode='Markdown')
+            await update.message.reply_text(f"✅ {mention} removed from federation admins.", parse_mode="Markdown")
         else:
             await update.message.reply_text("❌ That user is not a federation admin.")
     finally:
@@ -354,7 +370,7 @@ async def feddemote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @is_group_command
 async def fedjoin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("❌ Usage: `/fedjoin <federation_id>`", parse_mode='Markdown')
+        await update.message.reply_text("❌ Usage: `/fedjoin <federation_id>`", parse_mode="Markdown")
         return
     fed_id = context.args[0]
     chat_id = update.effective_chat.id
@@ -371,16 +387,14 @@ async def fedjoin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if existing.fed_id == fed_id:
                 await update.message.reply_text("ℹ️ This chat is already in that federation.")
             else:
-                await update.message.reply_text(
-                    "❌ This chat is already in another federation. Use `/fedleave` first.")
+                await update.message.reply_text("❌ This chat is already in another federation. Use `/fedleave` first.")
             return
 
         session.add(FederationChat(fed_id=fed_id, chat_id=chat_id, joined_by=update.effective_user.id))
         session.commit()
         await update.message.reply_text(
-            f"✅ This chat has joined federation **{fed.name}**.\n"
-            f"Federation bans will now be enforced in this chat.",
-            parse_mode='Markdown',
+            f"✅ This chat has joined federation **{fed.name}**.\nFederation bans will now be enforced in this chat.",
+            parse_mode="Markdown",
         )
     finally:
         session.close()
@@ -411,7 +425,7 @@ async def fedchat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text(
         f"🏰 This chat belongs to federation **{fed.name}** (`{fed.id}`).",
-        parse_mode='Markdown',
+        parse_mode="Markdown",
     )
 
 
@@ -422,7 +436,7 @@ def _resolve_fed_for_action(session, update: Update, context: ContextTypes.DEFAU
     Returns the fed object or None.
     """
     chat = update.effective_chat
-    if chat.type == 'private':
+    if chat.type == "private":
         return session.query(Federation).filter(Federation.owner_id == update.effective_user.id).first()
     return get_federation_for_chat(chat.id)
 
@@ -430,20 +444,22 @@ def _resolve_fed_for_action(session, update: Update, context: ContextTypes.DEFAU
 async def fedban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     info = get_user_from_message(update, context)
     if not info:
-        await update.message.reply_text("❌ Usage: `/fedban <id/reply> [reason]`", parse_mode='Markdown')
+        await update.message.reply_text("❌ Usage: `/fedban <id/reply> [reason]`", parse_mode="Markdown")
         return
     target_id, target_obj = info
     if not target_id:
         await update.message.reply_text("❌ Please pass a numeric user ID.")
         return
-    reason = ' '.join(context.args[1:]) if len(context.args) > 1 else "No reason"
+    reason = " ".join(context.args[1:]) if len(context.args) > 1 else "No reason"
     actor = update.effective_user.id
 
     session = db.get_session()
     try:
         fed = _resolve_fed_for_action(session, update, context)
         if not fed:
-            await update.message.reply_text("❌ No federation found. Join one with `/fedjoin` or create one with `/fednew`.")
+            await update.message.reply_text(
+                "❌ No federation found. Join one with `/fedjoin` or create one with `/fednew`."
+            )
             return
         if not is_fed_admin(fed.id, actor):
             await update.message.reply_text("❌ You must be a federation admin to ban in it.")
@@ -470,7 +486,7 @@ async def fedban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🏰 {mention} has been banned in federation **{fed.name}**!\n"
             f"**Reason:** {reason}\n"
             f"**Applied in {banned_chats} chat(s)**",
-            parse_mode='Markdown',
+            parse_mode="Markdown",
         )
     finally:
         session.close()
@@ -479,7 +495,7 @@ async def fedban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def fedunban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     info = get_user_from_message(update, context)
     if not info:
-        await update.message.reply_text("❌ Usage: `/fedunban <id/reply>`", parse_mode='Markdown')
+        await update.message.reply_text("❌ Usage: `/fedunban <id/reply>`", parse_mode="Markdown")
         return
     target_id, target_obj = info
     if not target_id:
@@ -497,8 +513,11 @@ async def fedunban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ You must be a federation admin to unban.")
             return
 
-        row = session.query(FederationBan).filter(
-            FederationBan.fed_id == fed.id, FederationBan.user_id == target_id).first()
+        row = (
+            session.query(FederationBan)
+            .filter(FederationBan.fed_id == fed.id, FederationBan.user_id == target_id)
+            .first()
+        )
         if not row:
             await update.message.reply_text("❌ That user is not federated-banned.")
             return
@@ -516,7 +535,7 @@ async def fedunban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mention = format_user_mention(target_obj) if target_obj else f"User `{target_id}`"
         await update.message.reply_text(
             f"✅ {mention} unbanned from federation **{fed.name}** ({unbanned} chats).",
-            parse_mode='Markdown',
+            parse_mode="Markdown",
         )
     finally:
         session.close()
@@ -525,7 +544,7 @@ async def fedunban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def fedkick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     info = get_user_from_message(update, context)
     if not info:
-        await update.message.reply_text("❌ Usage: `/fedkick <id/reply>`", parse_mode='Markdown')
+        await update.message.reply_text("❌ Usage: `/fedkick <id/reply>`", parse_mode="Markdown")
         return
     target_id, target_obj = info
     if not target_id:
@@ -555,7 +574,7 @@ async def fedkick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mention = format_user_mention(target_obj) if target_obj else f"User `{target_id}`"
         await update.message.reply_text(
             f"👢 {mention} kicked from federation **{fed.name}** ({kicked} chats).",
-            parse_mode='Markdown',
+            parse_mode="Markdown",
         )
     finally:
         session.close()
@@ -564,7 +583,7 @@ async def fedkick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def fedmute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     info = get_user_from_message(update, context)
     if not info:
-        await update.message.reply_text("❌ Usage: `/fedmute <id/reply> <time>`", parse_mode='Markdown')
+        await update.message.reply_text("❌ Usage: `/fedmute <id/reply> <time>`", parse_mode="Markdown")
         return
     target_id, target_obj = info
     if not target_id:
@@ -596,8 +615,10 @@ async def fedmute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for cid in get_fed_chat_ids(fed.id):
             try:
                 await context.bot.restrict_chat_member(
-                    chat_id=cid, user_id=target_id,
-                    permissions=ChatPermissions(can_send_messages=False), until_date=until,
+                    chat_id=cid,
+                    user_id=target_id,
+                    permissions=ChatPermissions(can_send_messages=False),
+                    until_date=until,
                 )
                 muted += 1
             except Exception:
@@ -606,7 +627,7 @@ async def fedmute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mention = format_user_mention(target_obj) if target_obj else f"User `{target_id}`"
         await update.message.reply_text(
             f"🔇 {mention} muted for {format_time_duration(duration)} across federation **{fed.name}** ({muted} chats).",
-            parse_mode='Markdown',
+            parse_mode="Markdown",
         )
     finally:
         session.close()
@@ -619,8 +640,13 @@ async def fedbans_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not fed:
             await update.message.reply_text("❌ No federation found.")
             return
-        bans = session.query(FederationBan).filter(FederationBan.fed_id == fed.id).order_by(
-            FederationBan.created_at.desc()).limit(50).all()
+        bans = (
+            session.query(FederationBan)
+            .filter(FederationBan.fed_id == fed.id)
+            .order_by(FederationBan.created_at.desc())
+            .limit(50)
+            .all()
+        )
         if not bans:
             await update.message.reply_text("📋 No federation bans.")
             return
@@ -630,7 +656,7 @@ async def fedbans_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if b.reason:
                 msg += f" — {b.reason}"
             msg += "\n"
-        await update.message.reply_text(msg, parse_mode='Markdown')
+        await update.message.reply_text(msg, parse_mode="Markdown")
     finally:
         session.close()
 
@@ -638,6 +664,7 @@ async def fedbans_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------------------------------------------------------------------
 # Enforcement helper (called on new members joining a chat)
 # ---------------------------------------------------------------------------
+
 
 async def enforce_federation_bans(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -657,10 +684,11 @@ async def enforce_federation_bans(update: Update, context: ContextTypes.DEFAULT_
         for member in new_members:
             if member.is_bot:
                 continue
-            ban = session.query(FederationBan).filter(
-                FederationBan.fed_id == fed_id,
-                FederationBan.user_id == member.id
-            ).first()
+            ban = (
+                session.query(FederationBan)
+                .filter(FederationBan.fed_id == fed_id, FederationBan.user_id == member.id)
+                .first()
+            )
             if ban:
                 try:
                     await context.bot.ban_chat_member(chat_id, member.id)

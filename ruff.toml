@@ -1,0 +1,49 @@
+# Ruff configuration for the Telegram Admin Bot.
+# Deliberate pragmatic choices for a long-polling bot codebase.
+target-version = "py312"
+line-length = 120
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "SIM",  # flake8-simplify
+    "UP",   # pyupgrade
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",   # long message/help strings
+    "E402",   # module-level imports deferred after env defaults (intentional)
+    "W291",   # trailing whitespace inside triple-quoted help text
+    "SIM105", # contextlib.suppress noise for zero-gain
+    "SIM108", # ternary vs if/assign readability
+    "SIM114", # combined if-branches harm readability in handler chains
+    "RUF001", # ambiguous unicode in user-facing emoji strings (intentional)
+    "E712",   # `Column == True` is the correct SQLAlchemy filter form
+]
+exclude = [
+    "__pycache__",
+    ".venv",
+    "venv",
+]
+
+[lint.per-file-ignores]
+# Files deliberately import modules to assert they load (import smoke tests).
+"test_bot.py"         = ["F401", "F841", "RUF059"]
+"test_advanced_bot.py"= ["F401"]
+"test_functional.py"  = ["F401"]
+"test_clonebot.py"    = ["F401", "F841", "RUF059"]
+"test_url_remover.py" = ["F401"]
+
+[lint.isort]
+known-first-party = ["config", "database", "utils"]
+
+[lint.flake8-pytest-style]
+fixture-parentheses = false
+
+[format]
+quote-style = "preserve"
+indent-style = "space"
+skip-magic-trailing-comma = false

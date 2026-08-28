@@ -1,13 +1,15 @@
 import logging
 
 from telegram import Update
-from telegram.ext import ContextTypes
 from telegram.constants import ChatMemberStatus
+from telegram.ext import ContextTypes
+
 from config import Config
 from database import db
 from utils import sync_telegram_admins
 
 logger = logging.getLogger(__name__)
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular messages for various checks"""
@@ -22,14 +24,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.get_or_create_user(user.id, user.username, user.first_name, user.last_name)
 
     # Skip processing for private chats
-    if chat.type == 'private':
+    if chat.type == "private":
         return
 
     # Track message activity for /stats and /top leaderboards (only for
     # registered chats and only non-command text messages).
-    if message.text and not message.text.startswith('/'):
+    if message.text and not message.text.startswith("/"):
         try:
             from handlers.stats import increment_message_count
+
             increment_message_count(chat.id, user.id)
         except Exception as e:
             logger.error(f"Failed to increment message count: {e}")
@@ -67,6 +70,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         session.close()
 
+
 async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle chat member status updates (promotions, demotions, etc.)"""
     if not update.chat_member:
@@ -78,29 +82,36 @@ async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAUL
     new_status = update.chat_member.new_chat_member.status
 
     # Attribute joins made via an invite link so /link_stat can report totals.
-    if (old_status in (ChatMemberStatus.LEFT, ChatMemberStatus.BANNED) and
-            new_status in (ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED)):
-        invite_link = getattr(update.chat_member, 'invite_link', None)
-        invite_name = getattr(invite_link, 'name', None)
+    if old_status in (ChatMemberStatus.LEFT, ChatMemberStatus.BANNED) and new_status in (
+        ChatMemberStatus.MEMBER,
+        ChatMemberStatus.RESTRICTED,
+    ):
+        invite_link = getattr(update.chat_member, "invite_link", None)
+        invite_name = getattr(invite_link, "name", None)
         if invite_name:
             try:
                 from handlers.invite_links import record_join_from_chat_member
+
                 record_join_from_chat_member(chat_id, user_id, invite_name)
                 logger.info(f"Attributed join of {user_id} to invite link '{invite_name}'")
             except Exception as e:
                 logger.error(f"Failed to attribute invite-link join: {e}")
 
     # Handle admin promotions/demotions
-    if old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED] and \
-       new_status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+    if old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED] and new_status in [
+        ChatMemberStatus.ADMINISTRATOR,
+        ChatMemberStatus.OWNER,
+    ]:
         # User was promoted to admin
         logger.info(f"User {user_id} was promoted to admin in chat {chat_id}")
         user = update.chat_member.new_chat_member.user
         db.get_or_create_chat(chat_id)
         db.get_or_create_user(user.id, user.username, user.first_name, user.last_name)
         db.add_admin(user.id, chat_id)
-    elif old_status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] and \
-         new_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED]:
+    elif old_status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] and new_status in [
+        ChatMemberStatus.MEMBER,
+        ChatMemberStatus.RESTRICTED,
+    ]:
         # User was demoted from admin
         logger.info(f"User {user_id} was demoted from admin in chat {chat_id}")
         # Remove from bot admin list
@@ -111,9 +122,9 @@ async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAUL
         logger.info(f"User {user_id} was banned/kicked from chat {chat_id}")
 
     # Handle unbans
-    elif old_status == ChatMemberStatus.BANNED and \
-         new_status in (ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED):
+    elif old_status == ChatMemberStatus.BANNED and new_status in (ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED):
         logger.info(f"User {user_id} was unbanned in chat {chat_id}")
+
 
 async def _fleet_bot_id(context) -> int:
     """Return the fleet id for the current application.
@@ -122,7 +133,7 @@ async def _fleet_bot_id(context) -> int:
     Telegram numeric bot id (matching its BotInstance.bot_id).
     """
     try:
-        token = getattr(context.bot, 'token', None) or Config.BOT_TOKEN
+        token = getattr(context.bot, "token", None) or Config.BOT_TOKEN
         if token == Config.BOT_TOKEN:
             return 0
         # Clone: resolve its numeric id via getMe (best effort).
@@ -136,6 +147,7 @@ def _record_fleet_membership(bot_id, chat_id, chat_title):
     """Record a chat in the shared fleet registry (main bot + every clone)."""
     try:
         from database import db as _db
+
         _db.record_fleet_membership(chat_id, chat_title, include_bot_id=bot_id)
     except Exception as e:
         logger.error(f"Failed to record fleet membership for {chat_id}: {e}")
@@ -153,6 +165,7 @@ async def handle_bot_added_to_chat(update: Update, context: ContextTypes.DEFAULT
         bot_id = await _fleet_bot_id(context)
         try:
             from database import db as _db
+
             _db.remove_fleet_membership(chat.id, bot_id)
         except Exception as e:
             logger.error(f"Failed to remove fleet membership for {chat.id}: {e}")
@@ -171,7 +184,10 @@ async def handle_bot_added_to_chat(update: Update, context: ContextTypes.DEFAULT
     # command shows every group any fleet bot (main or clone) is in.
     bot_id = await _fleet_bot_id(context)
     _record_fleet_membership(bot_id, chat.id, chat.title)
-    logger.info(f"Bot added to chat {chat.id} ({chat.title}); chat registered, admins synced, fleet membership recorded")
+    logger.info(
+        f"Bot added to chat {chat.id} ({chat.title}); chat registered, admins synced, fleet membership recorded"
+    )
+
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """Handle errors"""
@@ -183,5 +199,5 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
             await update.effective_message.reply_text(
                 "❌ An error occurred while processing your request. Please try again later."
             )
-        except:
+        except Exception:
             pass
